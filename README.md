@@ -1,7 +1,7 @@
-# rgnet1/tidal-dl Docker Wrapper
+# rgnet1/tidal-dl
 
-This is a simple python web server that allows you to run tidal-dl from a web
-page.  
+This is a simple web server that allows you to run tidal-dl from a web
+page. My tidal-dl program is a wrapper built on top of yaronzz's tidal-dl
 
 ## How to use
 
