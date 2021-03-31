@@ -11,31 +11,22 @@ docker build -t tidal-dl .
 ```
 Run image
 ```bash
-docker run -p 8885:80 --name tidal-dl -v <your-downlaod-location>:/production/www/cgi-bin/download-d rgnet1/tidal-dl
+docker run -p 8885:80 --name tidal-dl -d \
+ -v <your-downlaod-location>:/production/www/cgi-bin/download-d \
+ rgnet1/tidal-dl
 ```
 
 ## First Time Use
-First time use requires you to enter the container, and link tidal to your account:
-1. Enter the docker container
-    ```bash
-    docker exec -it  tidal-dl /bin/bash
-    ```
-2. Run login script
-    ```bash
-    ./tidal-login.sh
-    ```
-    Folow the onscreen prompts to finish tidal login, and exit the tidal-dl script
-by pressing 0 after you are logged in.
+First time use requires you to enter the container, and link tidal to your account. Run the tidal-login script with the following command:
+```bash
+docker exec -it tidal-dl ./tidal-login.sh
+```
 
-3. You can now exit the contianer with:
-    ```bash
-    exit
-    ```
+**_Note:_** Make sure you enter ```0``` after linking your account so tidal-dl exits. This is necessary for the
+the login script can finish execution
 
-**_Note:_** You must use my tidal-login script, because it moves
-the tidal-dl.token.json file to the the proper directory with the
-right permissions for tidal-dl to read. In the future I hope to
-support linking your exising token file.
+**_Note 2:_** You must use my tidal-login script, because it genrates and then moves the tidal-dl.token.json file to the the proper directory with the
+right permissions for tidal-dl to read.
 
 
 # Usage
