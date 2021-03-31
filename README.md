@@ -12,7 +12,7 @@ docker build -t tidal-dl .
 Run image
 ```bash
 docker run -p 8885:80 --name tidal-dl -d \
- -v <your-downlaod-location>:/production/www/cgi-bin/download-d \
+ -v <your-downlaod-location>:/production/www/cgi-bin/download \
  rgnet1/tidal-dl
 ```
 
