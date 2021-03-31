@@ -3,28 +3,34 @@
 This is a simple web server that allows you to run yaronzz/tidal-dl from a web
 browser.
 
-## How to use
+## Getting Started
+
+Manually build image:
 ```bash
-# Manually build image
 docker build -t tidal-dl .
-# run image
+```
+Run image
+```bash
 docker run -p 8885:80 --name tidal-dl -v <your-downlaod-location>:/production/www/cgi-bin/download-d rgnet1/tidal-dl
 ```
 
-## First time use
+## First Time Use
 First time use requires you to enter the container, and link tidal to your account:
-
-```bash
-# Enter docker container
-docker exec -it  tidal-dl /bin/bash
-
-# run my login script
-./tidal-login.sh
-```
-Folow the onscreen prompts to finish tidal login, and exit the tidal-dl script
+1. Enter the docker container
+    ```bash
+    docker exec -it  tidal-dl /bin/bash
+    ```
+2. Run login script
+    ```bash
+    ./tidal-login.sh
+    ```
+    Folow the onscreen prompts to finish tidal login, and exit the tidal-dl script
 by pressing 0 after you are logged in.
 
-You can now exit the contianer with: ```exit ```
+3. You can now exit the contianer with:
+    ```bash
+    exit
+    ```
 
 **_Note:_** You must use my tidal-login script, because it moves
 the tidal-dl.token.json file to the the proper directory with the
