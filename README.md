@@ -8,7 +8,7 @@ browser.
 # Manually build image
 docker build -t tidal-dl .
 # run image
-docker run -p 8885:80 --name tidal-dl -v <your-downlaod-loc>:/production/www/cgi-bin/download-d rgnet1/tidal-dl
+docker run -p 8885:80 --name tidal-dl -v <your-downlaod-location>:/production/www/cgi-bin/download-d rgnet1/tidal-dl
 ```
 
 ## First time use
