@@ -1,7 +1,7 @@
 # rgnet1/tidal-dl
 
-This is a simple web server that allows you to run tidal-dl from a web
-page. My tidal-dl program is a wrapper built on top of yaronzz's tidal-dl
+This is a simple web server that allows you to run yaronzz/tidal-dl from a web
+browser.
 
 ## How to use
 
