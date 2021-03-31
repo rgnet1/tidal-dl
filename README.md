@@ -4,10 +4,9 @@ This is a simple web server that allows you to run yaronzz/tidal-dl from a web
 browser.
 
 ## How to use
-
 ```bash
-# build image
-docker build -t rgnet1/tidal-dl .
+# Manually build image
+docker build -t tidal-dl .
 # run image
 docker run -p 8885:80 --name tidal-dl -v <your-downlaod-loc>:/production/www/cgi-bin/download-d rgnet1/tidal-dl
 ```
