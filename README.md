@@ -1,22 +1,39 @@
 # rgnet1/tidal-dl
 
-This is a simple web server that allows you to run yaronzz/tidal-dl from a web
-browser.
+This is a simple web server that allows you to run yaronzz/tidal-dl
+from a web browser.
 
-## Getting Started
+## Usage
+Here are some example snippets to help you get started creating a container.
+### docker-compose ([recommended](https://docs.linuxserver.io/general/docker-compose))
 
-Manually build image:
-```bash
-docker build -t tidal-dl .
+Compatible with docker-compose v3 schemas.
+
+```yaml
+version: "3"
+
+services:
+  tidal-dl:
+    container_name: tidal-dl
+    image: rgnet1/tidal-dl:latest
+    ports:
+      - "8885:80"
+    volumes:
+      - '~/download/:/production/www/cgi-bin/download/Album/'
+
 ```
-Run image
-```bash
-docker run -p 8885:80 --name tidal-dl -d \
- -v <your-downlaod-location>:/production/www/cgi-bin/download \
- rgnet1/tidal-dl
-```
 
-## First Time Use
+### docker cli
+
+```
+docker run -d \
+  --name=tidal-dl \
+  -p 8885:80 \
+  -v ~/download/:/production/www/cgi-bin/download/Album/ \
+  rgnet1/tidal-dl
+
+```
+## Application Setup
 First time use requires you to enter the container, and link tidal to your account. Run the tidal-login script with the following command:
 ```bash
 docker exec -it tidal-dl ./tidal-login.sh
@@ -29,7 +46,7 @@ the login script can finish execution
 right permissions for tidal-dl to read.
 
 
-# Usage
+
 You can Access from the below URL after run docker container.  
 
 * [http://localhost:8885](http://localhost:8885)

@@ -1,19 +1,29 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -u
 
-print("Content-type: text/html")
-print("\n")
+from sys import stdout
+import time
+
+import sys, time
+
+
+print('Content-type: text/html\r\n\r')
+# print("Content-type:text/plain;charset=utf-8\n\n") 
+
 
 import cgi, cgitb
-import os
+import os, sys
 import subprocess
 
-def bash_command(cmd):
-    subprocess.Popen(['/bin/bash', '-c', cmd]).wait()
+sys.stdout.flush()
+
+# def bash_command(cmd):
+#     subprocess.Popen(['/bin/bash', '-c', cmd]).wait()
 
 form = cgi.FieldStorage()
 
 if "textcontent" not in form:
-    print("Can't find text content")
+    sys.stdout.write("Can't find text content")
+    sys.stdout.flush()
     f = open("/production/www/cgi-bin/links.txt", "w+")
     f.write("EMPTY")
     f.close()
@@ -23,4 +33,4 @@ else:
     f = open("/production/www/cgi-bin/links.txt", "w+")
     f.write(form["textcontent"].value)
     f.close()
-    bash_command("python3 tidaldl.py")
+    import tidaldl.py

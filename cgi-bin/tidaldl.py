@@ -1,3 +1,4 @@
+#!/usr/bin/python3 -u
 # @author: Ramzey Ghanaim
 # 
 #            tidaldl.py
@@ -15,6 +16,7 @@ import subprocess
 import pexpect
 import sys
 import re
+import time
 from pexpect.expect import searcher_re
 ansi_escape = re.compile(rb'\x1B[@-_][0-?]*[ -/]*[@-~]')
 FILENAME = "/production/www/cgi-bin/links.txt"
@@ -65,7 +67,8 @@ def waitAgain(type):
         # song = songDetails[2].split('.flac', 1)[0].strip()
 
         # print("COMPLETED:", songNum, song, "By:", artist, "\n")
-        print("COMPLETED:", songDetails)
+        print("COMPLETED:" , songDetails, "<br />\n")
+        sys.stdout.flush()
         totalSongCount +=1
         return -1
 
@@ -89,8 +92,7 @@ for line in queue:
     elif "video" in line:
         type = "video"
     try:
-        print("----------------Starting new download. New", type,"----------------")
-
+        print("----------------Starting new download. New", type,"----------------<br />\n")
         # Only check Enter choice first time, because waitAgain() function
         # checks it after the first time
         if first:
@@ -100,29 +102,33 @@ for line in queue:
             x = 0
         if x == 0:
             y = -1 
-            tidal.send(line.strip() + "\n")
+            tidal.send(line.strip() + "\r\n")
             while y == -1:
                 y = waitAgain(type)
             # print("Done with current link")
         if x == 1:
-            print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
-            print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
-            print("Waiting for you to register....")
+            # sys.stdout.write(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+            # sys.stdout.write(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
+            print("\nWaiting for you to register....<br />\n")
+            exit(0)
+
             # sttart interactie mode
             # tidal.interact()
         if x == 2:
-            print("Error: timeout\n")
+            sys.stdout.write("Error: timeout<br />\n")
     except pexpect.EOF:
-        print("EOF error")
+        print("EOF error<br />\n")
         print(tidal.before)
         print(tidal.after)
+        # sys.stdout.flush()
     except pexpect.TIMEOUT:
-        print("Timeout Error")
+        print("Timeout Error<br />\n")
         print(tidal.before)
         print(tidal.after)
+        # sys.stdout.flush()
 
-print("-----------COPLETED ALL SONGS------------------")
-print("Total number of songs:", totalSongCount)
+print("<br />\n-----------COPLETED ALL SONGS------------------<br />\n")
+print("Total number of songs:", totalSongCount, "<br />\n")
 queue.close()
 
 tidal.kill(0)
