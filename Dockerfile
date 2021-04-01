@@ -15,9 +15,9 @@ RUN apt -y install python3
 
 # Install get-pip script
 RUN apt -y install python3-pip
-COPY requierments.txt .
+COPY copy-files/requierments.txt .
 RUN pip3 install -r requierments.txt
-COPY settings.py /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py
+COPY copy-files/settings.py /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py
 
 # Http settings
 ENV APACHE_RUN_USER www-data
@@ -41,7 +41,7 @@ RUN chown -R www-data: /production/www/cgi-bin/download/
 RUN chgrp www-data /var/www/
 RUN chmod g+rwxs /var/www/
 
-COPY tidal-login.sh .
+COPY copy-files/tidal-login.sh .
 RUN chmod +x tidal-login.sh
 EXPOSE 80
 
