@@ -11,8 +11,6 @@
 # 
 # Dependencies:
 #      pexpect, python3
-import os
-import subprocess
 import pexpect
 import sys
 import re
@@ -20,8 +18,14 @@ import time
 from pexpect.expect import searcher_re
 ansi_escape = re.compile(rb'\x1B[@-_][0-?]*[ -/]*[@-~]')
 FILENAME = "/production/www/cgi-bin/links.txt"
+# FILENAME = "../links.txt"
 totalSongCount = 0
-print("\n")
+print('''
+<style>
+p {text-align: left;font-size: medium;}
+</style>
+''')
+print("<p>")
 #                         waitAgain()
 #
 # This function waits to expect the "enter choice" output from tidaldl
@@ -36,9 +40,9 @@ def waitAgain(type):
     
     # Current link is completed. tidal-dl is waiting for next link
     if y == 0:
-        print("Finished download from current", type,"\n")
-        if type == "track":
-            totalSongCount +=1
+        print("Finished download from current", type, "<br />\n")
+        # sys.stdout.write(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+        # sys.stdout.write(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
         return 0
 
     # successfully download one song, but the next song is downloading
@@ -67,7 +71,7 @@ def waitAgain(type):
         # song = songDetails[2].split('.flac', 1)[0].strip()
 
         # print("COMPLETED:", songNum, song, "By:", artist, "\n")
-        print("COMPLETED:" , songDetails, "<br />\n")
+        print("COMPLETED:" , songDetails.strip().strip("="), "<br />\n")
         sys.stdout.flush()
         totalSongCount +=1
         return -1
@@ -81,7 +85,9 @@ tidal = pexpect.spawn("tidal-dl")
 x = 1
 first = True
 for line in queue:
-    # print(line.strip())
+    line = line.strip()
+    if len(line) <= 4:
+        continue
     type = "unknown"
     if "album" in line:
         type = "album"
@@ -102,7 +108,7 @@ for line in queue:
             x = 0
         if x == 0:
             y = -1 
-            tidal.send(line.strip() + "\r\n")
+            tidal.send(line.strip() + "\n")
             while y == -1:
                 y = waitAgain(type)
             # print("Done with current link")
@@ -132,4 +138,5 @@ print("Total number of songs:", totalSongCount, "<br />\n")
 queue.close()
 
 tidal.kill(0)
+print("</p>")
 sys.exit()
