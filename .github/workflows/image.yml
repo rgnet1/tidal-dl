@@ -21,4 +21,4 @@ jobs:
         run: |
           docker buildx build --push \
             --tag rgnet1/tidal-dl:latest \
-            --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm64/v8 .
+            --platform linux/amd64,linux/arm64/v8,linux/arm .
