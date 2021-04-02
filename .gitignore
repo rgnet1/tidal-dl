@@ -1,4 +1,5 @@
 docker-compose.*
 links.txt
+.vscode/**
 *.pyc
 __pycache__/*
