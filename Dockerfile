@@ -4,38 +4,28 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update
-RUN apt -y install software-properties-common
-RUN apt -y install apache2
-RUN apt -y install nano
-
-
-# Python3.9
-RUN apt -y install python3
-
-# Install get-pip script
-RUN apt -y install python3-pip
+RUN apt update && \
+ apt -y install software-properties-common apache2 nano python3 python3-pip
 COPY copy-files/requierments.txt .
 RUN pip3 install -r requierments.txt
 COPY copy-files/settings.py /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py
 
 # Http settings
-ENV APACHE_RUN_USER www-data
-ENV APACHE_RUN_GROUP www-data
-ENV APACHE_LOG_DIR /var/log/apache2
-ENV APACHE_PID_FILE /var/run/apache2.pid
-ENV APACHE_RUN_DIR /var/run/apache2
-ENV APACHE_LOCK_DIR /var/lock/apache2
-RUN mkdir -p $APACHE_RUN_DIR $APACHE_LOCK_DIR $APACHE_LOG_DIR
-
-RUN mkdir -p /production/www/cgi-bin/download/Album && \
+ENV APACHE_RUN_USER=www-data \
+ APACHE_RUN_GROUP=www-data \
+ APACHE_LOG_DIR=/var/log/apache2 \
+ APACHE_PID_FILE=/var/run/apache2.pid \
+ APACHE_RUN_DIR=/var/run/apache2 \
+ APACHE_LOCK_DIR=/var/lock/apache2
+RUN mkdir -p $APACHE_RUN_DIR $APACHE_LOCK_DIR $APACHE_LOG_DIR && \
+ mkdir -p /production/www/cgi-bin/download/Album && \
  mkdir -p /production/www/lib
 COPY cgi-bin /production/www/cgi-bin
 COPY lib /production/www/lib
 COPY apache2 /etc/apache2
 COPY webpage /var/www/html/
-RUN ln -s /etc/apache2/mods-available/cgi.load /etc/apache2/mods-enabled/cgi.load
-RUN chgrp www-data /production/www/cgi-bin/ && \
+RUN ln -s /etc/apache2/mods-available/cgi.load /etc/apache2/mods-enabled/cgi.load && \
+ chgrp www-data /production/www/cgi-bin/ && \
  chmod g+rwx /production/www/cgi-bin/ && \
  chown -R www-data: /production/www/cgi-bin/download/ && \
  chmod 755 production/www/cgi-bin/download/ && \
