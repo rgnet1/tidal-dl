@@ -7,7 +7,7 @@
     "artistBeforeTitle": false,
     "audioQuality": "Master",
     "checkExist": true,
-    "downloadPath": "./download/",
+    "downloadPath": "/production/www/cgi-bin/download/",
     "getAudioQuality": null,
     "getDefaultAlbumFolderFormat": null,
     "getDefaultTrackFileFormat": null,

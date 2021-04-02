@@ -28,18 +28,19 @@ ENV APACHE_RUN_DIR /var/run/apache2
 ENV APACHE_LOCK_DIR /var/lock/apache2
 RUN mkdir -p $APACHE_RUN_DIR $APACHE_LOCK_DIR $APACHE_LOG_DIR
 
-RUN mkdir -p /production/www/cgi-bin/download
-RUN mkdir -p /production/www/lib
+RUN mkdir -p /production/www/cgi-bin/download/Album && \
+ mkdir -p /production/www/lib
 COPY cgi-bin /production/www/cgi-bin
 COPY lib /production/www/lib
 COPY apache2 /etc/apache2
 COPY webpage /var/www/html/
 RUN ln -s /etc/apache2/mods-available/cgi.load /etc/apache2/mods-enabled/cgi.load
-RUN chgrp www-data /production/www/cgi-bin/
-RUN chmod g+rwx /production/www/cgi-bin/
-RUN chown -R www-data: /production/www/cgi-bin/download/
-RUN chgrp www-data /var/www/
-RUN chmod g+rwxs /var/www/
+RUN chgrp www-data /production/www/cgi-bin/ && \
+ chmod g+rwx /production/www/cgi-bin/ && \
+ chown -R www-data: /production/www/cgi-bin/download/ && \
+ chmod 755 production/www/cgi-bin/download/ && \
+ chgrp www-data /var/www/ && \
+ chmod g+rwxs /var/www/
 
 COPY copy-files/tidal-login.sh .
 RUN chmod +x tidal-login.sh
