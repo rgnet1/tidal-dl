@@ -1,7 +1,9 @@
 # rgnet1/tidal-dl
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/rgnet1/tidal-dl/Build)
+![Docker Pulls](https://img.shields.io/docker/pulls/rgnet1/tidal-dl)
 
 This is a simple web server that allows you to run yaronzz/tidal-dl
-from a web browser.
+from a web browser. You must have an active tidal subscription.
 
 ## Usage
 Here are some example snippets to help you get started creating a container.
@@ -61,7 +63,57 @@ You can Access from the below URL after run docker container:
 
 * [http://localhost:8885](http://localhost:8885)
 
+## Parameters
 
+Container images are configured using parameters passed at runtime (such as those above). These parameters are separated by a colon and indicate `<external>:<internal>` respectively. For example, `-p 8885:80` would expose port `80` from inside the container to be accessible from the host's IP on port `8885` outside the container.
+
+
+| Parameter | Function |
+| :----: | --- |
+| `-p 80` | Tidal-dl Web UI |
+| `-v /production/www/cgi-bin/download/` | Contains the download directory for tidal-dl |
+
+### Tidal-dl settings
+Currently we use a static tidal-dl settings I plan on making enviornmental variables out of these settings at some point soon. But here is the defualt/current settings:
+```json
+"addAlbumIDBeforeFolder": false,
+"addExplicitTag": true,
+"addHyphen": true,
+"addYear": true,
+"albumFolderFormat": "{ArtistName}/{AlbumTitle}",
+"artistBeforeTitle": false,
+"audioQuality": "Master",
+"checkExist": true,
+"downloadPath": "/production/www/cgi-bin/download/",
+"getAudioQuality": null,
+"getDefaultAlbumFolderFormat": null,
+"getDefaultTrackFileFormat": null,
+"getVideoQuality": null,
+"includeEP": false,
+"language": "0",
+"multiThreadDownload": true,
+"onlyM4a": false,
+"read": null,
+"save": null,
+"saveCovers": true,
+"showProgress": true,
+"trackFileFormat": "{TrackNumber}-{TrackTitle}",
+"usePlaylistFolder": true,
+"useTrackNumber": true,
+"videoQuality": "P1080"
+```
+**_Note:_** Do not change the `downloadPath` variable inside the contianer's tidal-dl.json settings. The current path has specfic linux permissions that allows web users to write to.
+If you change the path, you can change the outside of the container with volume maping.
+
+
+## Supported Architectures
+The architectures supported by this image are:
+
+| Architecture | Tag |
+| :----: | --- |
+| amd64 | latest |
+| arm64  | latest |
+| arm  | latest |
 ### References
 * [Usage of docker with apache2 and cgi](https://github.com/pyohei/docker-cgi-python)
 * [Tidal-dl](https://github.com/yaronzz/Tidal-Media-Downloader)
