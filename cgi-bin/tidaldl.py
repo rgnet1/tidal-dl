@@ -117,6 +117,7 @@ for line in queue:
             # sys.stdout.write(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
             print("\nWaiting for you to register....<br />\n")
             print("You need to use docker cli and run command: docker exec -it tidal-dl ./tidal-login.sh<br />\n")
+            print("unRAID users: simply open the console and run: ./tidal-login.sh<br />\n")
             exit(0)
 
             # sttart interactie mode

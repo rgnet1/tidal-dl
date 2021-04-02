@@ -34,10 +34,20 @@ docker run -d \
 
 ```
 ## Application Setup
-First time use requires you to enter the container, and link tidal to your account. Run the tidal-login script with the following command:
+First time use requires you to enter the container, and link tidal to your account. Run the tidal-login script, buitl inside the container. 
+
+### docker cli
+Run the login script with docker cli:
 ```bash
 docker exec -it tidal-dl ./tidal-login.sh
 ```
+
+### unRAID
+Open the container's console form unRAID UI and run:
+```bash
+./tidal-login.sh
+```
+
 
 **_Note:_** Make sure you enter ```0``` after linking your account so tidal-dl exits. This is necessary for the
 the login script can finish execution
@@ -47,7 +57,7 @@ right permissions for tidal-dl to read.
 
 
 
-You can Access from the below URL after run docker container.  
+You can Access from the below URL after run docker container:  
 
 * [http://localhost:8885](http://localhost:8885)
 
