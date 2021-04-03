@@ -1,5 +1,5 @@
 # rgnet1/tidal-dl
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/rgnet1/tidal-dl/Build)
+[![GitHub Workflow Status](https://github.com/docker/buildx/workflows/build/badge.svg)](https://img.shields.io/github/workflow/status/rgnet1/tidal-dl/Build)
 ![Docker Pulls](https://img.shields.io/docker/pulls/rgnet1/tidal-dl)
 
 This is a simple web server that allows you to run yaronzz/tidal-dl
