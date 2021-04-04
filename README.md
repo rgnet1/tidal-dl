@@ -74,7 +74,7 @@ Container images are configured using parameters passed at runtime (such as thos
 | `-v /production/www/cgi-bin/download/` | Contains the download directory for tidal-dl |
 
 ### Tidal-dl settings
-Currently we use a static tidal-dl settings I plan on making enviornmental variables out of these settings at some point soon. But here is the defualt/current settings:
+Currently we use a static tidal-dl settings I plan on making enviornmental variables out of these settings at some point soon. But here is the default/current settings:
 ```json
 "addAlbumIDBeforeFolder": false,
 "addExplicitTag": true,
