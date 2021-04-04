@@ -35,6 +35,10 @@ docker run -d \
   rgnet1/tidal-dl
 
 ```
+**_Note:_** If you run into issues running the container, please try using
+privliged mode by adding the flag ```--privileged``` to docker cli or 
+```privileged: true``` to docker-compose. Debian based hosts will need privleged mode.
+
 ## Application Setup
 First time use requires you to enter the container, and link tidal to your account. Run the tidal-login script, buitl inside the container. 
 
