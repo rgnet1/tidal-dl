@@ -22,6 +22,8 @@ services:
       - "8885:80"
     volumes:
       - '~/download/:/production/www/cgi-bin/download/Album/'
+      - '~/.tidal-dl.json:/production/www/cgi-bin/.tidal-dl.json'
+      - '~/.tidal-dl.token.json:/production/www/cgi-bin/.tidal-dl.token.json'
 
 ```
 
@@ -32,6 +34,8 @@ docker run -d \
   --name=tidal-dl \
   -p 8885:80 \
   -v ~/download/:/production/www/cgi-bin/download/Album/ \
+  -v ~/.tidal-dl.json:/production/www/cgi-bin/.tidal-dl.json \
+  -v ~/.tidal-dl.token.json:/production/www/cgi-bin/.tidal-dl.token.json \
   rgnet1/tidal-dl
 
 ```
@@ -40,20 +44,27 @@ privliged mode by adding the flag ```--privileged``` to docker cli or
 ```privileged: true``` to docker-compose. Debian based hosts will need privleged mode.
 
 ## Application Setup
-First time use requires you to enter the container, and link tidal to your account. Run the tidal-login script, buitl inside the container. 
+### Set up with existing tidal-dl info
+Only the downloads directory volume map is required. If you wish to use your own
+tidal-dl settings json file and/or your existing tidal-dl token, you can volume
+map it to the container using the following:
 
-### docker cli
-Run the login script with docker cli:
+| Your host locaiton | Container location (don't change) |
+| :----: | --- |
+| ~/download/  | /production/www/cgi-bin/download/Album/ |
+| ~/.tidal-dl.json | /production/www/cgi-bin/.tidal-dl.json |
+| ~/.tidal-dl.token.json  | /production/www/cgi-bin/.tidal-dl.token.json |
+
+
+**_Note:_** If you use your own custom tidal-dl settings, you must have the download path
+match the default, which can be seen in the Paramters section
+
+### Set up from scratch
+If you wish to not pass through tidal-dl settings and info, you can use the
+defaults. Run the login script with docker cli:
 ```bash
 docker exec -it tidal-dl ./tidal-login.sh
 ```
-
-### unRAID
-Open the container's console form unRAID UI and run:
-```bash
-./tidal-login.sh
-```
-
 
 **_Note:_** Make sure you enter ```0``` after linking your account so tidal-dl exits. This is necessary for the
 the login script can finish execution
@@ -74,11 +85,15 @@ Container images are configured using parameters passed at runtime (such as thos
 
 | Parameter | Function |
 | :----: | --- |
-| `-p 80` | Tidal-dl Web UI |
-| `-v /production/www/cgi-bin/download/` | Contains the download directory for tidal-dl |
+| `-p 80` | Tidal-dl Web UI (required)|
+| `-v /production/www/cgi-bin/download/` | Contains the download directory for tidal-dl (required)|
+| `-v /production/www/cgi-bin/.tidal-dl.json` | Contains tidal-dl settings (optional) |
+| `-v /production/www/cgi-bin/.tidal-dl.token.json` | Contians tidal login token (optional)|
+
+
 
 ### Tidal-dl settings
-Currently we use a static tidal-dl settings I plan on making enviornmental variables out of these settings at some point soon. But here is the default/current settings:
+We use a static tidal-dl settings if you do not volume mount your own settings. The default are as follows:
 ```json
 "addAlbumIDBeforeFolder": false,
 "addExplicitTag": true,
