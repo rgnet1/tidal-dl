@@ -49,7 +49,7 @@ Only the downloads directory volume map is required. If you wish to use your own
 tidal-dl settings json file and/or your existing tidal-dl token, you can volume
 map it to the container using the following:
 
-| Your host locaiton | Container location (don't change) |
+| Your host location | Container location (don't change) |
 | :----: | --- |
 | ~/download/  | /production/www/cgi-bin/download/Album/ |
 | ~/.tidal-dl.json | /production/www/cgi-bin/.tidal-dl.json |
