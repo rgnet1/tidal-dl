@@ -8,7 +8,7 @@ on:
       - '**.yml'
 
 jobs:
-  Build Docker Images:
+  Docker-Build:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
