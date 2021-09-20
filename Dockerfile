@@ -49,4 +49,3 @@ CMD ["-D", "FOREGROUND"]
 
 # Login as www-data user: su -l www-data -s /bin/bash
 # edit settings file:  nano /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py
-# change line 37ish to return os.path.abspath("./")
