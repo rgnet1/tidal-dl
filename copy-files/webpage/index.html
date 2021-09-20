@@ -1,0 +1,51 @@
+
+<html>
+<head>
+<style>
+h1 {text-align: center;}
+h2 {text-align: center;}
+p {text-align: center;}
+#boxes {
+        content: "";
+        display: table;
+        clear: both;
+      }
+      div {
+        float: left;
+        height: 470px;
+        width: 700px;
+        padding: 0 10px;
+      }
+      /* #column1 {
+        background-color: #a1edcc;
+      }
+      #column2 {
+        background-color: #a0e9ed;
+      } */
+</style>
+</head>
+
+
+
+<h1 style="font-size:5vw">Welcome to Tidal-Dl</h1>
+<h2> Tidal-Dl for Web!</h2>
+<p>Insert your links, one link per line on the left</p>
+<main id="boxes">
+<div id="column1">
+<form action = "/cgi-bin2/main.py" method = "post" target = "myFrame" style="text-align:center">
+    <textarea type="text" name = "textcontent" style="width: 700px;
+    height: 300px; padding: 5px;" placeholder="Add Tidal Links here"
+    ></textarea>
+    <input type = "submit" value = "Submit" style="width: 100px; height: 50px;"/>
+</form>
+</div>
+<div id="column2">
+    <iframe src="about:blank" name="myFrame"
+        width="600px" height="300px" scrolling="auto" frameborder="1"></iframe>
+</div>
+</main>
+<!-- NOTE: you must leave text area ending as ></textarea>. any space after the >
+means the space appears in the text box -->
+</html>
+
+
