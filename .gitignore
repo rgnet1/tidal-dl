@@ -1,5 +1,5 @@
 docker-compose.*
-.tidal-dl.token.json
+.tidal-dl.*
 links.txt
 .vscode/**
 *.pyc
