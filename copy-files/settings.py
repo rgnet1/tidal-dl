@@ -7,20 +7,21 @@
 @Version :   2.0
 @Contact :   yaronhuang@foxmail.com
 @Desc    :
-@Editor  : rgnet1@gmail.com
 '''
-
-import os
-import json
 import base64
+import json
+import os
+
 from aigpy.fileHelper import getContent, write
-from aigpy.modelHelper import dictToModel, modelToDict
-from tidal_dl.enum import AudioQuality, VideoQuality
+from aigpy.modelHelper import dictToModel, modelToDict, ModelBase
+from tidal_dl.enums import AudioQuality, VideoQuality
+
 
 def __encode__(string):
     sw = bytes(string, 'utf-8')
     st = base64.b64encode(sw)
     return st
+
 
 def __decode__(string):
     try:
@@ -30,18 +31,23 @@ def __decode__(string):
     except:
         return string
 
+
 def getSettingsPath():
     if "XDG_CONFIG_HOME" in os.environ:
         return os.environ['XDG_CONFIG_HOME']
     elif "HOME" in os.environ:
         return os.environ['HOME']
+    elif "HOMEDRIVE" in os.environ and "HOMEPATH" in os.environ:
+        return os.environ['HOMEDRIVE'] + os.environ['HOMEPATH']
     else:
         return os.path.abspath("./")
+
 
 def getLogPath():
     return getSettingsPath() + '/.tidal-dl.log'
 
-class TokenSettings(object):
+
+class TokenSettings(ModelBase):
     userid = None
     countryCode = None
     accessToken = None
@@ -57,6 +63,8 @@ class TokenSettings(object):
         txt = __decode__(txt)
         data = json.loads(txt)
         ret = dictToModel(data, TokenSettings())
+        if ret is None:
+            return TokenSettings()
         return ret
 
     @staticmethod
@@ -71,7 +79,10 @@ class TokenSettings(object):
     def __getFilePath__():
         return getSettingsPath() + '/.tidal-dl.token.json'
 
-class Settings(object):
+
+class Settings(ModelBase):
+    addLyrics = False
+    lyricsServerProxy = ''
     downloadPath = "./download/"
     onlyM4a = False
     addExplicitTag = True
@@ -91,6 +102,9 @@ class Settings(object):
     albumFolderFormat = R"{ArtistName}/{Flag} {AlbumTitle} [{AlbumID}] [{AlbumYear}]"
     trackFileFormat = R"{TrackNumber} - {ArtistName} - {TrackTitle}{ExplicitFlag}"
     showProgress = True
+    showTrackInfo = True
+    saveAlbumInfo = False
+    lyricFile = False
 
     @staticmethod
     def getDefaultAlbumFolderFormat():
@@ -108,6 +122,8 @@ class Settings(object):
             return Settings()
         data = json.loads(txt)
         ret = dictToModel(data, Settings())
+        if ret is None:
+            return Settings()
         ret.audioQuality = Settings.getAudioQuality(ret.audioQuality)
         ret.videoQuality = Settings.getVideoQuality(ret.videoQuality)
         ret.usePlaylistFolder = ret.usePlaylistFolder == True or ret.usePlaylistFolder is None

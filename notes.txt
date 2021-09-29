@@ -1,0 +1,3 @@
+1. When updating tidal-dl you need to copy the settings.py file
+change: return os.path._getfullpathname("./") to os.path.abspath("./")
+2. 
