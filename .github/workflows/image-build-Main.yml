@@ -1,4 +1,4 @@
-name: Multi-Arch Build and Push to DockerHub - Main
+name: Build and Push to DockerHub - Main
 
 on:
   push:
