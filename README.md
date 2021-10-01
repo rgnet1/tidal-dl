@@ -121,8 +121,9 @@ We use a static tidal-dl settings if you do not volume mount your own settings. 
 "useTrackNumber": true,
 "videoQuality": "P1080"
 ```
-**_Note:_** Do not change the `downloadPath` variable inside the contianer's tidal-dl.json settings. The current path has specfic linux permissions that allows web users to write to.
-If you change the path, you can change the outside of the container with volume maping.
+**_Note:_** Never change the `downloadPath` variable inside the contianer's tidal-dl.json settings. The current path has specfic linux permissions that allows web users to write to.
+Use volume mapping to map this required directory to your
+directory of choice.
 
 
 ## Supported Architectures
