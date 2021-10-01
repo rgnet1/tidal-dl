@@ -110,14 +110,14 @@ We use a static tidal-dl settings if you do not volume mount your own settings. 
 "getVideoQuality": null,
 "includeEP": false,
 "language": "0",
+"lyricFile":true,
+"lyricsServerProxy":"",
 "multiThreadDownload": true,
 "onlyM4a": false,
-"read": null,
-"save": null,
 "saveCovers": true,
 "showProgress": true,
 "trackFileFormat": "{TrackNumber}-{TrackTitle}",
-"usePlaylistFolder": true,
+"usePlaylistFolder": false,
 "useTrackNumber": true,
 "videoQuality": "P1080"
 ```
