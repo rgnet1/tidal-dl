@@ -2,7 +2,7 @@ name: Build and Push - Production
 
 on:
   push:
-    branches: main
+    branches: master
     paths-ignore:
       - '**/README.md'
       - '**.yml'
@@ -35,4 +35,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm/v7,linux/arm64
           push: true
-          tags: rgnet1/tidal-dl:development
+          tags: rgnet1/tidal-dl:latest
