@@ -144,7 +144,7 @@ The architectures supported by this image are:
 | arm  | latest |
 
 ## Docker Hub Link
-You can find this project on dockerhub [here](https://hub.docker.com/repository/docker/rgnet1/tidal-dl)
+You can find this project on Docker Hub [here](https://hub.docker.com/repository/docker/rgnet1/tidal-dl)
 
 ### References
 * [Usage of docker with apache2 and cgi](https://github.com/pyohei/docker-cgi-python)
