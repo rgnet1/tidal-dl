@@ -5,6 +5,11 @@
 This is a simple web server that allows you to run yaronzz/tidal-dl
 from a web browser. You must have an active tidal subscription.
 
+# WARNING - 11/21/2021
+After Tidal's subscription model change, Master quality is not currently
+working. Lossless CD quality is the highest quality currently. As soon
+as tidal-dl is updated, I will update this container 
+
 ## Usage
 Here are some example snippets to help you get started creating a container.
 ### docker-compose ([recommended](https://docs.linuxserver.io/general/docker-compose))
