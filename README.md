@@ -142,6 +142,10 @@ The architectures supported by this image are:
 | amd64 | latest |
 | arm64  | latest |
 | arm  | latest |
+
+## Docker Hub Link
+You can find this project on dockerhub [here](https://hub.docker.com/repository/docker/rgnet1/tidal-dl)
+
 ### References
 * [Usage of docker with apache2 and cgi](https://github.com/pyohei/docker-cgi-python)
 * [Tidal-dl](https://github.com/yaronzz/Tidal-Media-Downloader)
