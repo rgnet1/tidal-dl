@@ -6,9 +6,12 @@ This is a simple web server that allows you to run yaronzz/tidal-dl
 from a web browser. You must have an active tidal subscription.
 
 # WARNING - 11/21/2021
-After Tidal's subscription model change, Master quality is not currently
+After Tidal's subscription model change:
+1. You must re-do the tidal login or add an updated tidal token to the
+mapped volume
+2.  Master quality is not currently
 working. Lossless CD quality is the highest quality currently. As soon
-as tidal-dl is updated, I will update this container 
+as tidal-dl is updated, I will update this container. 
 
 ## Usage
 Here are some example snippets to help you get started creating a container.
