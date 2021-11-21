@@ -3,7 +3,7 @@ name: Push Readme to Docker Hub
 # Only run on README change in main
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - README.md
 
