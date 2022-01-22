@@ -105,6 +105,8 @@ class Settings(ModelBase):
     showTrackInfo = True
     saveAlbumInfo = False
     lyricFile = True
+    apiKeyIndex = 0
+    addTypeFolder = True
 
     @staticmethod
     def getDefaultAlbumFolderFormat():
@@ -128,10 +130,13 @@ class Settings(ModelBase):
         ret.videoQuality = Settings.getVideoQuality(ret.videoQuality)
         ret.usePlaylistFolder = ret.usePlaylistFolder == True or ret.usePlaylistFolder is None
         ret.multiThreadDownload = ret.multiThreadDownload == True or ret.multiThreadDownload is None
+        ret.addTypeFolder = ret.addTypeFolder == True or ret.addTypeFolder is None
         if ret.albumFolderFormat is None:
             ret.albumFolderFormat = Settings.getDefaultAlbumFolderFormat()
         if ret.trackFileFormat is None:
             ret.trackFileFormat = Settings.getDefaultTrackFileFormat()
+        if ret.apiKeyIndex is None:
+            ret.apiKeyIndex = 0
         return ret
 
     @staticmethod
