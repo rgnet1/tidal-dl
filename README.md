@@ -5,14 +5,6 @@
 This is a simple web server that allows you to run yaronzz/tidal-dl
 from a web browser. You must have an active tidal subscription.
 
-# WARNING - 11/21/2021
-After Tidal's subscription model change:
-1. You must re-do the tidal login or add an updated tidal token to the
-mapped volume
-2.  Master quality is not currently
-working. Lossless CD quality is the highest quality currently. As soon
-as tidal-dl is updated, I will update this container. 
-
 ## Usage
 Here are some example snippets to help you get started creating a container.
 ### docker-compose ([recommended](https://docs.linuxserver.io/general/docker-compose))
@@ -103,31 +95,38 @@ Container images are configured using parameters passed at runtime (such as thos
 ### Tidal-dl settings
 We use a static tidal-dl settings if you do not volume mount your own settings. The default are as follows:
 ```json
-"addAlbumIDBeforeFolder": false,
-"addExplicitTag": true,
-"addHyphen": true,
-"addYear": true,
-"albumFolderFormat": "{ArtistName}/{AlbumTitle}",
-"artistBeforeTitle": false,
-"audioQuality": "Master",
-"checkExist": true,
-"downloadPath": "/production/www/cgi-bin/download/",
-"getAudioQuality": null,
-"getDefaultAlbumFolderFormat": null,
-"getDefaultTrackFileFormat": null,
-"getVideoQuality": null,
-"includeEP": false,
-"language": "0",
+"addAlbumIDBeforeFolder":false,
+"addExplicitTag":true,
+"addHyphen":true,
+"addLyrics":false,
+"addTypeFolder":true,
+"addYear":false,
+"albumFolderFormat":"{ArtistName}/{AlbumTitle}",
+"apiKeyIndex":3,
+"artistBeforeTitle":false,
+"audioQuality":"Master",
+"checkExist":false,
+"downloadPath":"./download/",
+"getAudioQuality":null,
+"getDefaultAlbumFolderFormat":null,
+"getDefaultTrackFileFormat":null,
+"getVideoQuality":null,
+"includeEP":false,
+"language":"0",
 "lyricFile":true,
 "lyricsServerProxy":"",
-"multiThreadDownload": true,
-"onlyM4a": false,
-"saveCovers": true,
-"showProgress": true,
-"trackFileFormat": "{TrackNumber}-{TrackTitle}",
-"usePlaylistFolder": false,
-"useTrackNumber": true,
-"videoQuality": "P1080"
+"multiThreadDownload":true,
+"onlyM4a":false,
+"read":null,
+"save":null,
+"saveAlbumInfo":false,
+"saveCovers":true,
+"showProgress":true,
+"showTrackInfo":true,
+"trackFileFormat":"{TrackNumber}-{TrackTitle}",
+"usePlaylistFolder":false,
+"useTrackNumber":true,
+"videoQuality":"P1080"
 ```
 **_Note:_** Never change the `downloadPath` variable inside the contianer's tidal-dl.json settings. The current path has specfic linux permissions that allows web users to write to.
 Use volume mapping to map this required directory to your
