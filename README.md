@@ -67,7 +67,7 @@ docker exec -it tidal-dl ./tidal-login.sh
 ```
 Tidal-dl will start. Log in by selecting the option to Select APIKey. Enter '5'
 
-Next, Selct the Index you wish. I reccomend the basic TV format. Enter '3'
+Next, Selct the Index you wish. I reccomend the basic Android Auto format. Enter '5'
 
 **_Note:_** Make sure you enter ```0``` after linking your account so tidal-dl exits. This is necessary for the
 the login script can finish execution
