@@ -1,6 +1,10 @@
 name: Build and Push - Development
 
 on:
+  workflow_dispatch:
+    branches:
+      - development
+
   push:
     branches:
       - development

@@ -1,6 +1,9 @@
 name: Build and Push - Production 
 
 on:
+   workflow_dispatch:
+    branches:
+      - master
   push:
     branches: master
     paths-ignore:
