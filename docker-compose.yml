@@ -3,7 +3,7 @@ version: "3"
 services:
   tidal-dl:
     container_name: tidal-local
-    image: rgnet1/tidal-dl:latest
+    image: rgnet1/tidal-dl:development
     ports:
       - "8885:80"
     volumes:
