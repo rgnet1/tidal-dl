@@ -76,6 +76,30 @@ def waitAgain(type):
         totalSongCount +=1
         return -1
 
+
+def login(tidal):
+
+    print("\nWaiting for you to register....<br />\n")
+    string_output = ansi_escape.sub(b'',tidal.after).decode("utf-8")
+    login_url = re.search("(?P<url>https?://[^\s]+)", string_output).group("url")
+    print("Go to this link to log in<br />\n")
+    print(login_url + "<br />\n")
+    wait_time = string_output.split(" minutes")[0].split()[-1:][0]
+    if wait_time.isnumeric():
+        wait_time = int(wait_time)
+    else:
+        wait_time = 5
+    print(f"You have {wait_time} minutes<br />\n")
+    x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*'],timeout=(wait_time * 60))
+    if x == 0:
+        print("Login Complete. Please try your link(s) again<br />\n")
+    else:
+        print("Login did not work<br />\n")
+        print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+        print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
+
+
+
 # read file
 queue = open(FILENAME, 'r')
 
@@ -102,7 +126,7 @@ for line in queue:
         # Only check Enter choice first time, because waitAgain() function
         # checks it after the first time
         if first:
-            x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*'],timeout=10)
+            x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*', '.*APIKEY index:.*'],timeout=10)
             first = False
         else:
             x = 0
@@ -115,14 +139,30 @@ for line in queue:
         if x == 1:
             # sys.stdout.write(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
             # sys.stdout.write(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
-            print("\nWaiting for you to register....<br />\n")
-            print("You need to use docker cli and run command: docker exec -it tidal-dl ./tidal-login.sh<br />\n")
-            print("unRAID users: simply open the console and run: ./tidal-login.sh<br />\n")
-            exit(0)
-
+            login(tidal)
+            tidal.kill(0)
+            print("</p>")
+            sys.exit()
+            # print("You need to use docker cli and run command: docker exec -it tidal-dl ./tidal-login.sh<br />\n")
+            # print("unRAID users: simply open the console and run: ./tidal-login.sh<br />\n")
             # sttart interactie mode
             # tidal.interact()
         if x == 2:
+            # Select API key option 4 - Valid = true, Formats - all
+            # May need to double check this prior to upgrading tidal-dl version
+            tidal.send('4\n')
+            x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*', '.*APIKEY index:.*'],timeout=10)
+            if x == 1:
+                login(tidal)
+            else:
+                print("ERROR. API Key didn't work<br />\n")
+                print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+                print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
+
+            tidal.kill(0)
+            print("</p>")
+            sys.exit()
+        if x == 3:
             sys.stdout.write("Error: timeout<br />\n")
     except pexpect.EOF:
         print("EOF error<br />\n")
@@ -131,8 +171,8 @@ for line in queue:
         # sys.stdout.flush()
     except pexpect.TIMEOUT:
         print("Timeout Error<br />\n")
-        print(tidal.before)
-        print(tidal.after)
+        print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+        print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
         # sys.stdout.flush()
 
 print("<br />\n-----------COPLETED ALL SONGS------------------<br />\n")

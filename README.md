@@ -44,7 +44,7 @@ privliged mode by adding the flag ```--privileged``` to docker cli or
 ```privileged: true``` to docker-compose. Debian based hosts will need privleged mode.
 
 ## Application Setup
-### Set up with existing tidal-dl info
+### Set up with existing tidal-dl configuration
 Only the downloads directory volume map is required. If you wish to use your own
 tidal-dl settings json file and/or your existing tidal-dl token, you can volume
 map it to the container using the following:
@@ -59,23 +59,14 @@ map it to the container using the following:
 **_Note:_** If you use your own custom tidal-dl settings, you must have the download path
 match the default, which can be seen in the Paramters section
 
-### Set up from scratch
-If you wish to not pass through tidal-dl settings and info, you can use the
-defaults. Run the login script with docker cli:
-```bash
-docker exec -it tidal-dl ./tidal-login.sh
-```
-Tidal-dl will start. Log in by selecting the option to Select APIKey. Enter '5'
+### Set up via container login
+If you wish to start fresh and loginto tidal you can. Simply insert a link and try to download it.
 
-Next, Selct the Index you wish. I reccomend the basic Android Auto format. Enter '5'
+If you are not logged
+into tidal, your login link will be generated for you. You will need to copy and paste that link into a web browser to
+login. 
 
-**_Note:_** Make sure you enter ```0``` after linking your account so tidal-dl exits. This is necessary for the
-the login script can finish execution
-
-**_Note 2:_** You must use my tidal-login script, because it genrates and then moves the tidal-dl.token.json file to the the proper directory with the
-right permissions for tidal-dl to read.
-
-
+Feel free to open an issue if you have issues logging in.
 
 You can Access from the below URL after run docker container:  
 
