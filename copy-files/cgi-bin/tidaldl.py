@@ -15,6 +15,7 @@ import pexpect
 import sys
 import re
 import time
+import shutil, os
 from pexpect.expect import searcher_re
 ansi_escape = re.compile(rb'\x1B[@-_][0-?]*[ -/]*[@-~]')
 FILENAME = "/production/www/cgi-bin/links.txt"
@@ -76,6 +77,28 @@ def waitAgain(type):
         totalSongCount +=1
         return -1
 
+def set_up_config_folder(startup=False):
+    
+    settings_path = '/production/www/cgi-bin/.tidal-dl.json'
+    token_path = '/production/www/cgi-bin/.tidal-dl.token.json'
+    settings_dest = '/production/www/cgi-bin/configuration/settings.json'
+    token_dest = '/production/www/cgi-bin/configuration/token.json'
+    if startup:
+        if os.path.exists(token_dest):
+            shutil.copy2(token_dest, token_path)
+            print("Copying token<br />\n")
+            os.chmod(token_path, 0o666)
+        if os.path.exists(settings_dest):
+            shutil.copy2(settings_dest, settings_path)
+            print("Copying settings<br />\n")
+            os.chmod(settings_path, 0o666)
+        return
+    
+    if not os.path.exists(token_dest) and os.path.exists(token_path):
+        shutil.copy2(token_path, token_dest)
+    if not os.path.exists(settings_dest) and os.path.exists(settings_path):
+        shutil.copy2(settings_path, settings_dest)
+   
 
 def login(tidal):
 
@@ -90,15 +113,17 @@ def login(tidal):
     else:
         wait_time = 5
     print(f"You have {wait_time} minutes<br />\n")
-    x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*'],timeout=(wait_time * 60))
+    x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*',  '.*APIKEY index:.*'],timeout=(wait_time * 60))
     if x == 0:
         print("Login Complete. Please try your link(s) again<br />\n")
+        set_up_config_folder()
     else:
         print("Login did not work<br />\n")
         print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
         print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
 
 
+set_up_config_folder(startup=True)
 
 # read file
 queue = open(FILENAME, 'r')
