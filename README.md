@@ -22,7 +22,7 @@ services:
       - "8885:80"
     volumes:
       - '~/download/:/production/www/cgi-bin/download/'
-      - '~/configuration/:/production/www/cgi-bin/configuration
+      - '~/configuration/:/production/www/cgi-bin/configuration/'
 
 ```
 
@@ -32,9 +32,8 @@ services:
 docker run -d \
   --name=tidal-dl \
   -p 8885:80 \
-  -v ~/download/:/production/www/cgi-bin/download/Album/ \
-  -v ~/.tidal-dl.json:/production/www/cgi-bin/.tidal-dl.json \
-  -v ~/.tidal-dl.token.json:/production/www/cgi-bin/.tidal-dl.token.json \
+  -v ~/download/:/production/www/cgi-bin/download/ \
+  -v ~/configuration/:/production/www/cgi-bin/configuration/ \
   rgnet1/tidal-dl
 
 ```
@@ -44,25 +43,24 @@ privliged mode by adding the flag ```--privileged``` to docker cli or
 
 ## Application Setup
 ### Set up with existing tidal-dl configuration
-Only the downloads directory volume map is required. If you wish to use your own
-tidal-dl settings json file and/or your existing tidal-dl token, you can volume
-map it to the container using the following:
+Only the downloads directory volume map is required. If you want to keep your tidal configuration
+persistant so you don't have to log in every time you star the container, you must map
+the configuration folder. If you are provideding your own configuration you must place 
+the two files (.tidal-dl.json and .tidal-dl.token.json) in the configuration folder
 
-| Your host location | Container location (don't change) |
-| :----: | --- |
-| ~/download/  | /production/www/cgi-bin/download/Album/ |
-| ~/.tidal-dl.json | /production/www/cgi-bin/.tidal-dl.json |
-| ~/.tidal-dl.token.json  | /production/www/cgi-bin/.tidal-dl.token.json |
+| Your host location | Container location (don't change) | Notes |
+| :----: | --- | --- |
+| ~/download/  | /production/www/cgi-bin/download/ | Files will download here
+| ~/configuration/ | /production/www/cgi-bin/configuration/ | .tidal-dl.json and .tidal-dl.token.json will be placed here
 
 
-**_Note:_** If you use your own custom tidal-dl settings, you must have the download path
-match the default, which can be seen in the Paramters section
+**_Note:_** Just volume mount the configuration folder, and make sure your config file and token file are in it. No need to volume mount the files seperatly. 
 
 ### Set up via container login
 If you wish to start fresh and loginto tidal you can. Simply insert a link and try to download it.
 
 If you are not logged
-into tidal, your login link will be generated for you. You will need to copy and paste that link into a web browser to
+into tidal, your login link will be generated for you as you try to download a song. You will need to copy and paste that link into a web browser to
 login. 
 
 Feel free to open an issue if you have issues logging in.
@@ -80,32 +78,15 @@ Container images are configured using parameters passed at runtime (such as thos
 | :----: | --- |
 | `-p 80` | Tidal-dl Web UI (required)|
 | `-v /production/www/cgi-bin/download/` | Contains the download directory for tidal-dl (required)|
-| `-v /production/www/cgi-bin/.tidal-dl.json` | Contains tidal-dl settings (optional) |
-| `-v /production/www/cgi-bin/.tidal-dl.token.json` | Contians tidal login token (optional)|
+| `-v /production/www/cgi-bin/configuration/` | Contains tidal-dl settings (optional but recommended) |
 
 
 
 ### Tidal-dl settings
-We use a static tidal-dl settings if you do not volume mount your own settings. The default are as follows:
-```json
-"albumFolderFormat": "{ArtistName}/{AlbumTitle}",
-    "apiKeyIndex": 4,
-    "audioQuality": "Master",
-    "checkExist": false,
-    "downloadPath": "/production/www/cgi-bin/download/",
-    "includeEP": false,
-    "language": "0",
-    "lyricFile": true,
-    "multiThread": null,
-    "saveAlbumInfo": false,
-    "saveCovers": true,
-    "showProgress": true,
-    "showTrackInfo": true,
-    "trackFileFormat": "{TrackNumber}-{TrackTitle}",
-    "usePlaylistFolder": false,
-    "videoFileFormat": "{VideoNumber} - {ArtistName} - {VideoTitle}{ExplicitFlag}",
-    "videoQuality": "P1080"
-```
+We use default tidal-dl settings if you do not volume mount your own settings. If you wish to
+change the tidal-dl settings, you mush map the configuration folder and run the container.
+Then you can modify the tidal-dl settings file.
+
 **_Note:_** Never change the `downloadPath` variable inside the contianer's tidal-dl.json settings. The current path has specfic linux permissions that allows web users to write to.
 Use volume mapping to map this required directory to your
 directory of choice.

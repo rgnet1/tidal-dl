@@ -3,10 +3,9 @@ version: "3"
 services:
   tidal-dl:
     container_name: tidal-local
-    image: rgnet1/tidal-dl:development
+    image: local/tidal-local
     ports:
       - "8885:80"
     volumes:
-      - 'C:\Users\rgnet\Music\download:/production/www/cgi-bin/download/Album/'
-      - 'C:\Users\rgnet\Documents\github\tidal-dl-wrapper\.tidal-dl.json:/production/www/cgi-bin/.tidal-dl.json'
-      - 'C:\Users\rgnet\Documents\github\tidal-dl-wrapper\.tidal-dl.token.json:/production/www/cgi-bin/.tidal-dl.token.json'
+      - 'C:\Users\rgnet\Music\download:/production/www/cgi-bin/download/'
+      - 'C:\Users\rgnet\Documents\github\tidal-dl-wrapper\tmp\:/production/www/cgi-bin/configuration/'
