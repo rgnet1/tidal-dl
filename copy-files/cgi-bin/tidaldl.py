@@ -85,6 +85,8 @@ def set_up_config_folder(startup=False):
     token_path = '/production/www/cgi-bin/.tidal-dl.token.json'
     settings_dest = '/production/www/cgi-bin/configuration/settings.json'
     token_dest = '/production/www/cgi-bin/configuration/token.json'
+
+    # Move user provided file to tidal-dl
     if (os.path.exists(token_dest))  and ( (not os.path.exists(token_path)) or (not filecmp.cmp(token_dest, token_path))):
         shutil.copy2(token_dest, token_path)
         print("Copying provided token<br />\n")
@@ -93,6 +95,17 @@ def set_up_config_folder(startup=False):
         shutil.copy2(settings_dest, settings_path)
         print("Copying settings<br />\n")
         os.chmod(settings_path, 0o666)
+        return
+
+    # Move generated file to configuration/
+    if (os.path.exists(token_path))  and ( (not os.path.exists(token_dest)) or (not filecmp.cmp(token_dest, token_path))):
+        shutil.copy2(token_path, token_dest)
+        print("Copying generated token file to configuration folder<br />\n")
+        os.chmod(token_dest, 0o666)
+    if (os.path.exists(settings_path)) and ( (not os.path.exists(settings_dest)) or (not filecmp.cmp(settings_dest, settings_path))):
+        shutil.copy2(settings_path, settings_dest)
+        print("Copying settings file to configuration folder<br />\n")
+        os.chmod(settings_dest, 0o666)
    
 
 def login(tidal):
