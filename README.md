@@ -21,9 +21,8 @@ services:
     ports:
       - "8885:80"
     volumes:
-      - '~/download/:/production/www/cgi-bin/download/Album/'
-      - '~/.tidal-dl.json:/production/www/cgi-bin/.tidal-dl.json'
-      - '~/.tidal-dl.token.json:/production/www/cgi-bin/.tidal-dl.token.json'
+      - '~/download/:/production/www/cgi-bin/download/'
+      - '~/configuration/:/production/www/cgi-bin/configuration
 
 ```
 
