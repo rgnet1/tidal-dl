@@ -23,7 +23,7 @@ COPY copy-files/ ./copy-files/
 
 # set up container enviornment:
 RUN pip3 install -r copy-files/requierments.txt &&\
-cp copy-files/settings.py /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py && \
+# cp copy-files/settings.py /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py && \
 mkdir -p $APACHE_RUN_DIR $APACHE_LOCK_DIR $APACHE_LOG_DIR && \
 mkdir -p /production/www/cgi-bin/download/Album && \
 mkdir -p /production/www/lib && \

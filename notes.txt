@@ -1,3 +1,6 @@
-1. When updating tidal-dl you need to copy the settings.py file
+1. When updating tidal-dl you need to verify the default API key options in tidal.py
 change: return os.path._getfullpathname("./") to os.path.abspath("./")
 2. use "pip3 show tidal-dl" to get info on tidal-dl's installation
+3. docker build:
+
+docker build . -t local/tidal-local

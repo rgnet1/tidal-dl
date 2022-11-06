@@ -15,7 +15,10 @@ import pexpect
 import sys
 import re
 import time
+import shutil, os
 from pexpect.expect import searcher_re
+import filecmp
+
 ansi_escape = re.compile(rb'\x1B[@-_][0-?]*[ -/]*[@-~]')
 FILENAME = "/production/www/cgi-bin/links.txt"
 # FILENAME = "../links.txt"
@@ -76,6 +79,47 @@ def waitAgain(type):
         totalSongCount +=1
         return -1
 
+def set_up_config_folder(startup=False):
+    
+    settings_path = '/production/www/cgi-bin/.tidal-dl.json'
+    token_path = '/production/www/cgi-bin/.tidal-dl.token.json'
+    settings_dest = '/production/www/cgi-bin/configuration/settings.json'
+    token_dest = '/production/www/cgi-bin/configuration/token.json'
+    if (os.path.exists(token_dest))  and ( (not os.path.exists(token_path)) or (not filecmp.cmp(token_dest, token_path))):
+        shutil.copy2(token_dest, token_path)
+        print("Copying provided token<br />\n")
+        os.chmod(token_path, 0o666)
+    if (os.path.exists(settings_dest)) and ( (not os.path.exists(settings_path)) or (not filecmp.cmp(settings_dest, settings_path))):
+        shutil.copy2(settings_dest, settings_path)
+        print("Copying settings<br />\n")
+        os.chmod(settings_path, 0o666)
+   
+
+def login(tidal):
+
+    print("\nWaiting for you to register....<br />\n")
+    string_output = ansi_escape.sub(b'',tidal.after).decode("utf-8")
+    login_url = re.search("(?P<url>https?://[^\s]+)", string_output).group("url")
+    print("Go to this link to log in<br />\n")
+    print(login_url + "<br />\n")
+    wait_time = string_output.split(" minutes")[0].split()[-1:][0]
+    if wait_time.isnumeric():
+        wait_time = int(wait_time)
+    else:
+        wait_time = 5
+    print(f"You have {wait_time} minutes<br />\n")
+    x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*',  '.*APIKEY index:.*'],timeout=(wait_time * 60))
+    if x == 0:
+        print("Login Complete. Please try your link(s) again<br />\n")
+        set_up_config_folder()
+    else:
+        print("Login did not work<br />\n")
+        print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+        print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
+
+
+set_up_config_folder()
+
 # read file
 queue = open(FILENAME, 'r')
 
@@ -102,7 +146,7 @@ for line in queue:
         # Only check Enter choice first time, because waitAgain() function
         # checks it after the first time
         if first:
-            x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*'],timeout=10)
+            x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*', '.*APIKEY index:.*'],timeout=10)
             first = False
         else:
             x = 0
@@ -115,14 +159,30 @@ for line in queue:
         if x == 1:
             # sys.stdout.write(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
             # sys.stdout.write(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
-            print("\nWaiting for you to register....<br />\n")
-            print("You need to use docker cli and run command: docker exec -it tidal-dl ./tidal-login.sh<br />\n")
-            print("unRAID users: simply open the console and run: ./tidal-login.sh<br />\n")
-            exit(0)
-
+            login(tidal)
+            tidal.kill(0)
+            print("</p>")
+            sys.exit()
+            # print("You need to use docker cli and run command: docker exec -it tidal-dl ./tidal-login.sh<br />\n")
+            # print("unRAID users: simply open the console and run: ./tidal-login.sh<br />\n")
             # sttart interactie mode
             # tidal.interact()
         if x == 2:
+            # Select API key option 4 - Valid = true, Formats - all
+            # May need to double check this prior to upgrading tidal-dl version
+            tidal.send('4\n')
+            x = tidal.expect(['.*Enter Choice:.*', '.*Waiting for authorization.*', '.*APIKEY index:.*'],timeout=10)
+            if x == 1:
+                login(tidal)
+            else:
+                print("ERROR. API Key didn't work<br />\n")
+                print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+                print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
+
+            tidal.kill(0)
+            print("</p>")
+            sys.exit()
+        if x == 3:
             sys.stdout.write("Error: timeout<br />\n")
     except pexpect.EOF:
         print("EOF error<br />\n")
@@ -131,8 +191,8 @@ for line in queue:
         # sys.stdout.flush()
     except pexpect.TIMEOUT:
         print("Timeout Error<br />\n")
-        print(tidal.before)
-        print(tidal.after)
+        print(ansi_escape.sub(b'',tidal.before).decode("utf-8"))
+        print(ansi_escape.sub(b'',tidal.after).decode("utf-8"))
         # sys.stdout.flush()
 
 print("<br />\n-----------COPLETED ALL SONGS------------------<br />\n")
