@@ -2,7 +2,7 @@
 [![GitHub Workflow Status](https://github.com/docker/buildx/workflows/build/badge.svg)](https://img.shields.io/github/workflow/status/rgnet1/tidal-dl/Build)
 ![Docker Pulls](https://img.shields.io/docker/pulls/rgnet1/tidal-dl)
 
-This is a simple web server that allows you to run yaronzz/tidal-dl
+This is a simple web server that allows you to run yaronzz/Tidal-Media-Downloader
 from a web browser. You must have an active tidal subscription.
 
 ## Usage
@@ -57,7 +57,7 @@ the two files (.tidal-dl.json and .tidal-dl.token.json) in the configuration fol
 **_Note:_** Just volume mount the configuration folder, and make sure your config file and token file are in it. No need to volume mount the files seperatly. 
 
 ### Set up via container login
-If you wish to start fresh and loginto tidal you can. Simply insert a link and try to download it.
+If you wish to start fresh and log into tidal you can. Simply insert a link and try to download it.
 
 If you are not logged
 into tidal, your login link will be generated for you as you try to download a song. You will need to copy and paste that link into a web browser to
@@ -84,7 +84,7 @@ Container images are configured using parameters passed at runtime (such as thos
 
 ### Tidal-dl settings
 We use default tidal-dl settings if you do not volume mount your own settings. If you wish to
-change the tidal-dl settings, you mush map the configuration folder and run the container.
+change the tidal-dl settings, you must map the configuration folder and run the container.
 Then you can modify the tidal-dl settings file.
 
 **_Note:_** Never change the `downloadPath` variable inside the contianer's tidal-dl.json settings. The current path has specfic linux permissions that allows web users to write to.
