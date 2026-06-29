@@ -23,19 +23,21 @@ fi
 echo -e "${BLUE}Starting Tidal DL Pro Web UI...${NC}"
 mkdir -p downloads config
 
-$DCMD up -d --build
+$DCMD pull
+$DCMD up -d
 
+PORT="${TIDAL_DL_PRO_PORT:-8001}"
 echo -e "${BLUE}Waiting for service...${NC}"
 for i in $(seq 1 15); do
-    if curl -sf http://localhost:8000/api/status &>/dev/null; then
+    if curl -sf "http://localhost:${PORT}/api/status" &>/dev/null; then
         break
     fi
     sleep 1
 done
 
-if curl -sf http://localhost:8000/api/status &>/dev/null; then
-    echo -e "${GREEN}Ready at http://localhost:8000${NC}"
-    (xdg-open http://localhost:8000 2>/dev/null || open http://localhost:8000 2>/dev/null || true)
+if curl -sf "http://localhost:${PORT}/api/status" &>/dev/null; then
+    echo -e "${GREEN}Ready at http://localhost:${PORT}${NC}"
+    (xdg-open "http://localhost:${PORT}" 2>/dev/null || open "http://localhost:${PORT}" 2>/dev/null || true)
 else
     echo -e "${RED}Service failed to start. Run: $DCMD logs tidal-dl-pro-web${NC}"
     exit 1

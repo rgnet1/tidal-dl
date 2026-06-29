@@ -1,17 +1,14 @@
-# Deprecated: use docker-compose.yml (same image, same layout).
+# Local development only — builds the image from the Dockerfile in this repo.
+# For normal use, run `docker compose up -d` (pulls rgnet1/tidal-dl:latest from Docker Hub).
 services:
   tidal-dl-pro-web:
-    image: ${APP_IMAGE:-rgnet1/tidal-dl:latest}
+    build: .
     container_name: tidal-dl-pro-web
-    pull_policy: always
     ports:
       - "${TIDAL_DL_PRO_PORT:-8001}:8000"
     environment:
-      # Match the host user so bind-mounted files (./config, ./downloads) end
-      # up owned by your account. Override in a .env file if needed.
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
-      # Optional: force default engine on boot (tidal-dl-ng | tiddl). Settings UI can override.
       # ACTIVE_ENGINE: "tidal-dl-ng"
     volumes:
       - ./config:/config

@@ -16,79 +16,37 @@
 - **Settings** for download engine, audio/video quality, lyrics, and FLAC extraction
 - **Dark / light mode**
 
-## Quick start
+## Quick start (Docker Hub)
+
+The published image is **[`rgnet1/tidal-dl:latest`](https://hub.docker.com/r/rgnet1/tidal-dl)** on Docker Hub. You do **not** need to clone this repo or build anything locally.
+
+### Option A — Docker Compose (recommended)
+
+Create a folder for persistent data, download the compose file, and start:
 
 ```bash
-git clone https://github.com/rgnet1/tidal-dl.git
-cd tidal-dl
+mkdir -p tidal-dl-pro/config tidal-dl-pro/downloads
+cd tidal-dl-pro
 
-mkdir -p config downloads
-docker compose up -d --build
+curl -fsSLO https://raw.githubusercontent.com/rgnet1/tidal-dl/master/docker-compose.yml
+
+docker compose pull
+docker compose up -d
 ```
 
-Open **http://localhost:8001** (default host port), click **Login to TIDAL**, complete OAuth, then search or browse your library.
+Open **http://localhost:8001**, click **Login to TIDAL**, complete OAuth, then search or browse your library.
 
-Or use the helper script:
+To update to the latest image later:
 
 ```bash
-./scripts/start-web.sh
+docker compose pull && docker compose up -d
 ```
 
-### Common commands
-
-| Action | Command |
-| --- | --- |
-| View logs | `docker compose logs -f tidal-dl-pro-web` |
-| Stop | `docker compose down` |
-| Rebuild after code changes | `docker compose up -d --build` |
-| Check health | `curl -sf http://localhost:8001/api/status` |
-
-## Docker Compose
-
-The project ships with `docker-compose.yml` at the repo root. It defines one service:
-
-```yaml
-services:
-  tidal-dl-pro-web:
-    build: .                    # build image from the Dockerfile in this repo
-    container_name: tidal-dl-pro-web
-    ports:
-      - "${TIDAL_DL_PRO_PORT:-8001}:8000"   # host:container
-    environment:
-      PUID: "${PUID:-1000}"     # match your host user for file ownership
-      PGID: "${PGID:-1000}"
-    volumes:
-      - ./config:/config        # TIDAL login + app settings (persisted)
-      - ./downloads:/downloads  # downloaded media (persisted)
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/status"]
-```
-
-**Service name:** `tidal-dl-pro-web`
-
-**Port mapping:** the app listens on port `8000` inside the container. By default it is published on host port **8001** so it does not clash with other services. Override with `TIDAL_DL_PRO_PORT` in a `.env` file or shell:
+### Option B — `docker pull` and `docker run`
 
 ```bash
-TIDAL_DL_PRO_PORT=8080 docker compose up -d
-```
+docker pull rgnet1/tidal-dl:latest
 
-**Volumes:**
-
-| Host path | Container path | What it stores |
-| --- | --- | --- |
-| `./config` | `/config` | OAuth tokens, settings, and per-engine config mirrors |
-| `./downloads` | `/downloads` | Downloaded audio and video files |
-
-Both directories are created automatically on first run. Data survives `docker compose down` and image rebuilds as long as these bind mounts stay in place.
-
-**Health check:** Docker polls `/api/status` every 30 seconds. If the container is unhealthy, check logs with `docker compose logs tidal-dl-pro-web`.
-
-### Run the published image (no local build)
-
-Production images are pushed to Docker Hub as [`rgnet1/tidal-dl:latest`](https://hub.docker.com/r/rgnet1/tidal-dl) on every merge to `master` (except README-only changes).
-
-```bash
 mkdir -p config downloads
 docker run -d \
   --name tidal-dl-pro-web \
@@ -101,11 +59,56 @@ docker run -d \
   rgnet1/tidal-dl:latest
 ```
 
-Or use `docker-compose.release.yml`, which pulls the published image instead of building locally:
+Open **http://localhost:8001**.
+
+### Common commands
+
+| Action | Command |
+| --- | --- |
+| View logs | `docker compose logs -f tidal-dl-pro-web` |
+| Stop | `docker compose down` |
+| Update image | `docker compose pull && docker compose up -d` |
+| Check health | `curl -sf http://localhost:8001/api/status` |
+
+## Docker Compose file
+
+The repo's `docker-compose.yml` pulls the published image — it does **not** build locally:
+
+```yaml
+services:
+  tidal-dl-pro-web:
+    image: rgnet1/tidal-dl:latest   # pulled from Docker Hub
+    pull_policy: always             # check for updates on every `docker compose up`
+    container_name: tidal-dl-pro-web
+    ports:
+      - "${TIDAL_DL_PRO_PORT:-8001}:8000"
+    environment:
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+    volumes:
+      - ./config:/config
+      - ./downloads:/downloads
+    restart: unless-stopped
+```
+
+**Image:** `rgnet1/tidal-dl:latest` — always use the `:latest` tag unless you are pinning a specific version.
+
+**Port mapping:** the app listens on port `8000` inside the container and is published on host port **8001** by default. Override with `TIDAL_DL_PRO_PORT`:
 
 ```bash
-APP_IMAGE=rgnet1/tidal-dl:latest docker compose -f docker-compose.release.yml up -d
+TIDAL_DL_PRO_PORT=8080 docker compose up -d
 ```
+
+**Volumes:**
+
+| Host path | Container path | What it stores |
+| --- | --- | --- |
+| `./config` | `/config` | OAuth tokens, settings, and per-engine config mirrors |
+| `./downloads` | `/downloads` | Downloaded audio and video files |
+
+Both directories must exist (or are created with `mkdir -p`) before first run. Data survives `docker compose down` and image updates as long as these bind mounts stay in place.
+
+**Health check:** Docker polls `/api/status` every 30 seconds. If the container is unhealthy, check logs with `docker compose logs tidal-dl-pro-web`.
 
 ## Configuration
 
@@ -117,14 +120,6 @@ Set these in a `.env` file next to `docker-compose.yml`, or export them in your 
 | `PUID` | `1000` | UID the container runs as — set to `id -u` on Linux if files end up owned by root |
 | `PGID` | `1000` | GID to run as — set to `id -g` on Linux |
 | `ACTIVE_ENGINE` | _(unset)_ | Force engine on boot: `tidal-dl-ng` or `tiddl`; overridden once you change it in Settings |
-
-Inside the container (set automatically by compose, rarely changed manually):
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `XDG_CONFIG_HOME` | `/config` | Where settings and tokens are stored |
-| `DOWNLOAD_PATH` | `/downloads` | Default download folder for new installs |
-| `TIDDL_PATH` | `/config/tiddl` | tiddl engine config mirror |
 
 On first boot the entrypoint remaps the container user to `PUID:PGID` and chowns `/config`. Your TIDAL OAuth token lives at `./config/tidal_dl_ng/token.json` on the host.
 
@@ -142,8 +137,6 @@ Open the gear icon (top-right):
 
 Interactive docs: **http://localhost:8001/docs**
 
-Key endpoints:
-
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/status` | Health and auth state |
@@ -159,15 +152,11 @@ Key endpoints:
 
 **Port already in use**
 
-Another service is bound to port 8001. Pick a different port:
-
 ```bash
 TIDAL_DL_PRO_PORT=8002 docker compose up -d
 ```
 
 **Wrong file ownership on `./config` or `./downloads`**
-
-Set `PUID` and `PGID` to your host user, then restart:
 
 ```bash
 PUID=$(id -u) PGID=$(id -g) docker compose up -d
@@ -177,20 +166,33 @@ PUID=$(id -u) PGID=$(id -g) docker compose up -d
 
 ```bash
 docker compose logs tidal-dl-pro-web
-docker compose build --no-cache && docker compose up -d
+docker compose pull && docker compose up -d
 ```
 
-**WebSocket errors / `/ws` returns 404**
+**Pulling a stale image**
 
-Rebuild the image — the Dockerfile installs the WebSocket stack explicitly:
+Force Docker to fetch the latest from Hub:
 
 ```bash
-docker compose build --no-cache && docker compose up -d
+docker compose pull --ignore-buildable
+docker compose up -d
 ```
 
 **FLAC extraction failed**
 
 FFmpeg is included in the image. If extraction still fails, check the download logs in the web UI queue panel.
+
+## Building locally (developers)
+
+Only needed if you are modifying the source code. Clone the repo and use `docker-compose.build.yml`:
+
+```bash
+git clone https://github.com/rgnet1/tidal-dl.git
+cd tidal-dl
+
+mkdir -p config downloads
+docker compose -f docker-compose.build.yml up -d --build
+```
 
 ## Disclaimer
 

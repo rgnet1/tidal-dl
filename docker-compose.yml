@@ -1,7 +1,8 @@
 services:
   tidal-dl-pro-web:
-    build: .
+    image: rgnet1/tidal-dl:latest
     container_name: tidal-dl-pro-web
+    pull_policy: always
     ports:
       - "${TIDAL_DL_PRO_PORT:-8001}:8000"
     environment:
@@ -15,7 +16,7 @@ services:
       # Persist TIDAL login tokens and app settings on the host.
       # Container path /config is XDG_CONFIG_HOME, so settings.json and
       # token.json are written to ./config/tidal_dl_ng/ on the host and
-      # survive rebuilds.
+      # survive image updates.
       - ./config:/config
       - ./downloads:/downloads
     restart: unless-stopped
