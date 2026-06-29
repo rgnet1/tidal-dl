@@ -1,49 +1,56 @@
-# Docker file for python simple tidal-dl web server build
+# ---- Production image (Tidal DL Pro web UI) ----
+# tiddl v3.x requires Python >=3.13; upstream tidal-dl-ng supports 3.12–3.13 per pyproject.
+FROM python:3.13-slim
 
-FROM ubuntu:20.04
+ENV PUID=1000 \
+    PGID=1000 \
+    XDG_CONFIG_HOME=/config \
+    TIDDL_PATH=/config/tiddl \
+    DOWNLOAD_PATH=/downloads \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
-ENV DEBIAN_FRONTEND=noninteractive \
- APACHE_RUN_USER=www-data \
- APACHE_RUN_GROUP=www-data \
- APACHE_LOG_DIR=/var/log/apache2 \
- APACHE_PID_FILE=/var/run/apache2.pid \
- APACHE_RUN_DIR=/var/run/apache2 \
- APACHE_LOCK_DIR=/var/lock/apache2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg curl gosu tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r -g 1000 app && useradd -r -u 1000 -g app -d /home/app -s /bin/bash app \
+    && mkdir -p /home/app && chown -R app:app /home/app
 
-# Updates and installs
-RUN apt update && apt -y install \
-    software-properties-common \
-    apache2 \
-    nano \
-    python3 \
-    python3-pip
+WORKDIR /app
 
-# Copy necessary files into container
-COPY copy-files/ ./copy-files/
+# NOTE: quotes around uvicorn[standard] are REQUIRED; without them the shell
+# treats [standard] as a glob pattern and pip installs plain uvicorn, leaving
+# the WebSocket implementation (websockets/wsproto/httptools/uvloop) missing.
+RUN pip install \
+    "fastapi==0.115.*" \
+    "uvicorn[standard]==0.34.*" \
+    "websockets>=12" \
+    "wsproto>=1.2" \
+    "tiddl>=3.3.0,<4" \
+    "tomli-w>=1.0.0"
 
-# set up container enviornment:
-RUN pip3 install -r copy-files/requierments.txt &&\
-# cp copy-files/settings.py /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py && \
-mkdir -p $APACHE_RUN_DIR $APACHE_LOCK_DIR $APACHE_LOG_DIR && \
-mkdir -p /production/www/cgi-bin/download/Album && \
-mkdir -p /production/www/lib && \
-cp -r copy-files/cgi-bin/* /production/www/cgi-bin/ && \
-cp -r copy-files/lib/* /production/www/lib/ && \
-cp -r copy-files/apache2/* /etc/apache2/ && \
-cp -r copy-files/webpage/* /var/www/html/ && \
-ln -s /etc/apache2/mods-available/cgi.load /etc/apache2/mods-enabled/cgi.load && \
-chgrp www-data /production/www/cgi-bin/ && \
-chmod g+rwx /production/www/cgi-bin/ && \
-chown -R www-data: /production/www/cgi-bin/download/ && \
-chmod 755 production/www/cgi-bin/download/ && \
-chgrp www-data /var/www/ && \
-chmod g+rwxs /var/www/ && \
-cp copy-files/tidal-login.sh . && \
-chmod +x tidal-login.sh
+COPY pyproject.toml poetry.lock README.md LICENSE /app/
+COPY tidal_dl_ng/ /app/tidal_dl_ng/
+RUN pip install .
 
-EXPOSE 80
-ENTRYPOINT [ "/usr/sbin/apache2" ]
-CMD ["-D", "FOREGROUND"]
+COPY web/ /app/web/
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Normalize line endings in case the script was saved with CRLF on Windows,
+# otherwise bash rejects it with "bad interpreter".
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Login as www-data user: su -l www-data -s /bin/bash
-# edit settings file:  nano /usr/local/lib/python3.8/dist-packages/tidal_dl/settings.py
+# Declare the persistent paths. Bind-mounting any path here from docker-compose
+# (e.g. ./config:/config) keeps settings.json and token.json on the host so
+# credentials survive rebuilds.
+RUN mkdir -p /config /config/unified /config/tiddl /downloads \
+    && chown -R app:app /config /downloads
+VOLUME ["/config", "/downloads"]
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -fsS http://localhost:8000/api/status || exit 1
+
+ENTRYPOINT ["tini", "--", "docker-entrypoint.sh"]
+CMD ["uvicorn", "web.main:app", "--host", "0.0.0.0", "--port", "8000", "--ws", "websockets"]

@@ -1,0 +1,65 @@
+default_language_version:
+  python: python3.12
+
+default_stages: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: "v4.5.0"
+    hooks:
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: "v0.1.12"
+    hooks:
+      - id: ruff
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: "v3.1.0"
+    hooks:
+      - id: prettier
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+        exclude: LICENSE
+
+  - repo: local
+    hooks:
+      - id: pyupgrade
+        name: pyupgrade
+        entry: poetry run pyupgrade --py312-plus
+        types: [python]
+        language: system
+
+  # Disabled du to conflicts with black and I like the style of black more.
+  #  - repo: local
+  #    hooks:
+  #      - id: isort
+  #        name: isort
+  #        entry: poetry run isort --settings-path pyproject.toml
+  #        types: [python]
+  #        language: system
+
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: poetry run black --config pyproject.toml
+        types: [python]
+        language: system
+#  - repo: local
+#    hooks:
+#      - id: pyright
+#        name: pyright
+#        entry: poetry run pyright
+#        types: [python]
+#        language: system
+#        pass_filenames: false

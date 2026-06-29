@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Tidal DL Pro</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F%89%87%99</text></svg>" />
+  <script>
+    // Apply the dark class to <html> BEFORE paint so the body's own dark
+    // utilities resolve (Tailwind's class dark mode is descendant-based, so the
+    // toggle must live on an ancestor of every dark: utility, not on <body>).
+    (function () {
+      try {
+        var saved = localStorage.getItem('dark');
+        var isDark = saved !== null
+          ? saved === 'true'
+          : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', isDark);
+      } catch (e) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#eef7ff',
+              100: '#d9edff',
+              200: '#bce0ff',
+              300: '#8ecdff',
+              400: '#59b0ff',
+              500: '#338dfc',
+              600: '#1d6ef1',
+              700: '#1558de',
+              800: '#1548b9',
+              900: '#163d91',
+              950: '#172964',
+            },
+            surface: {
+              50:  '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+              950: '#020617',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .toast-enter { animation: slideIn 0.3s ease; }
+    .toast-leave { animation: slideOut 0.3s ease; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    .fade-enter { animation: fadeUp 0.25s ease; }
+    @keyframes fadeUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* Dark-mode form element overrides — browsers don't reliably inherit
+       Tailwind text-color classes into <input>, <select>, <textarea>.
+       These rules ensure text is always visible against dark backgrounds. */
+    .dark input,
+    .dark textarea,
+    .dark select {
+      color: #e2e8f0;         /* surface-200 */
+      color-scheme: dark;
+    }
+    .dark input::placeholder {
+      color: #64748b;         /* surface-500 */
+    }
+    .dark input:disabled,
+    .dark select:disabled,
+    .dark input[readonly],
+    .dark textarea[readonly] {
+      color: #94a3b8;         /* surface-400 */
+    }
+    .dark option {
+      background-color: #1e293b;  /* surface-800 */
+      color: #e2e8f0;             /* surface-200 */
+    }
+  </style>
+</head>
+
+<body class="h-full bg-surface-50 dark:bg-surface-950 text-surface-800 dark:text-surface-200 antialiased"
+      x-data="app()"
+      x-init="init()"
+      x-effect="document.documentElement.classList.toggle('dark', dark)">
+
+<!-- LOGIN SCREEN -->
+<div x-show="!auth" x-cloak class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-md">
+    <div class="text-center mb-8 fade-enter">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 text-white mb-4">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight" x-text="appDisplayName">Tidal DL Pro</h1>
+      <p class="text-surface-500 dark:text-surface-400 mt-2">TIDAL downloads for desktop &amp; LAN</p>
+    </div>
+
+    <div class="bg-white dark:bg-surface-900 rounded-2xl shadow-lg border border-surface-200 dark:border-surface-700/50 p-8">
+      
+      <!-- Show login URL always when one exists -->
+      <template x-if="loginUrl">
+        <div class="mb-4 p-3 bg-brand-50 dark:bg-brand-900/30 rounded-lg border border-brand-200 dark:border-brand-700">
+          <p class="text-sm font-medium text-brand-700 dark:text-brand-300 mb-1">Open this link on any device:</p>
+          <a :href="loginUrl" target="_blank" class="text-sm text-brand-600 dark:text-brand-400 break-all hover:underline font-mono" x-text="loginUrl"></a>
+        </div>
+      </template>
+
+      <template x-if="loginInProgress">
+        <div class="text-center">
+          <div class="inline-flex w-12 h-12 animate-spin rounded-full border-4 border-brand-200 border-t-brand-600 mb-4"></div>
+          <p class="text-surface-600 dark:text-surface-300 font-medium" x-text="loginStatus"></p>
+          <p class="text-sm text-surface-400 mt-1">Sign in on the device where you opened the link</p>
+        </div>
+      </template>
+
+      <template x-if="!loginInProgress">
+        <div>
+          <p class="text-surface-600 dark:text-surface-300 mb-6">Sign in with your TIDAL account to get started.</p>
+          <button @click="doLogin()"
+                  class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3 px-4 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-surface-900">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Login to TIDAL
+          </button>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN INTERFACE -->
+<div x-show="auth" x-cloak class="h-screen flex flex-col">
+
+  <!-- Top Bar -->
+  <header class="relative z-50 flex-shrink-0 flex items-center justify-between h-14 px-2 sm:px-4 border-b border-surface-200 dark:border-surface-700/60 bg-white/80 dark:bg-surface-900/80 backdrop-blur-sm">
+    <div class="flex items-center gap-2 min-w-0">
+      <button type="button" @click="mobileLibraryOpen = true; mobileQueueOpen = false" class="md:hidden p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition shrink-0" title="Library" aria-label="Open library">
+        <svg class="w-5 h-5 text-surface-600 dark:text-surface-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h10"/></svg>
+      </button>
+      <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+      </div>
+      <span class="font-bold text-base sm:text-lg leading-none truncate" x-text="appDisplayName">Tidal DL Pro</span>
+    </div>
+    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+      <button type="button" @click="mobileQueueOpen = true; mobileLibraryOpen = false" class="md:hidden p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition" title="Queue" aria-label="Open queue">
+        <svg class="w-5 h-5 text-surface-600 dark:text-surface-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18v4H3V4zm0 8h18v4H3v-4zm0 8h10v4H3v-4z"/></svg>
+      </button>
+      <button @click="dark = !dark; localStorage.setItem('dark', String(dark))" class="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition" title="Toggle theme">
+        <svg x-show="!dark" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <svg x-show="dark" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+      <button @click="closeMobilePanels(); showSettings = true; pathTemplatesExpanded = false" class="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition" title="Settings">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button @click="doLogout()" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition" title="Logout">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Body (3 columns on md+; center-only on small screens with slide-over panels) -->
+  <div class="relative flex-1 flex overflow-hidden min-h-0">
+    <div x-show="mobileLibraryOpen || mobileQueueOpen" x-cloak @click="closeMobilePanels()"
+         class="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden" aria-hidden="true"></div>
+
+    <!-- LEFT SIDEBAR: Library -->
+    <aside
+      class="flex flex-col border-r border-surface-200 dark:border-surface-700/60 bg-white dark:bg-surface-900 overflow-hidden
+             w-[min(20rem,88vw)] md:w-64 flex-shrink-0
+             fixed md:static z-40 md:z-auto left-0 top-14 md:top-auto bottom-0 md:bottom-auto h-[calc(100dvh-3.5rem)] md:h-auto
+             shadow-2xl md:shadow-none
+             transition-transform duration-200 ease-out
+             -translate-x-full md:translate-x-0"
+      :class="{ 'translate-x-0': mobileLibraryOpen }">
+      <div class="md:hidden shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-surface-200 dark:border-surface-700/60">
+        <span class="text-sm font-semibold text-surface-800 dark:text-surface-100">Library</span>
+        <button type="button" @click="closeMobilePanels()" class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition" aria-label="Close library panel">
+          <svg class="w-5 h-5 text-surface-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-3">
+        <button @click="fetchLibrary()" class="w-full flex items-center justify-center gap-2 text-sm bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 px-3 py-2 rounded-lg transition font-medium">
+          <svg class="w-4 h-4" :class="{'animate-spin': libLoading}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Refresh Library
+        </button>
+      </div>
+
+      <div class="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-4">
+        <template x-if="libLoading">
+          <div class="flex items-center justify-center py-12">
+            <div class="w-6 h-6 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600"></div>
+          </div>
+        </template>
+        <template x-if="!libLoading">
+          <div>
+            <template x-if="library.playlists && library.playlists.length">
+              <div class="mb-4">
+                <h3 class="text-[11px] font-bold text-surface-400 dark:text-surface-300 uppercase tracking-wider px-1 mb-1">Playlists</h3>
+                <div class="space-y-0.5">
+                  <template x-for="pl in library.playlists" :key="'pl-'+pl.id">
+                    <button @click="selectLibraryItem(pl)"
+                            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition text-left truncate"
+                            :class="{'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300': selectedLib && selectedLib.id === pl.id}">
+                      <svg x-show="loadingLibId !== pl.id" class="w-4 h-4 flex-shrink-0 text-surface-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                      <svg x-show="loadingLibId === pl.id" class="w-4 h-4 flex-shrink-0 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <span class="truncate" x-text="pl.title"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="library.favorites && library.favorites.length">
+              <div class="mb-4">
+                <h3 class="text-[11px] font-bold text-surface-400 dark:text-surface-300 uppercase tracking-wider px-1 mb-1">Favorites</h3>
+                <div class="space-y-0.5">
+                  <template x-for="fav in library.favorites" :key="'fav-'+fav.id">
+                    <button @click="selectLibraryItem(fav)"
+                            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition text-left truncate"
+                            :class="{'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300': selectedLib && selectedLib.id === fav.id}">
+                      <svg x-show="loadingLibId !== fav.id" class="w-4 h-4 flex-shrink-0 text-red-400" fill="currentColor" viewBox="0 0 24 24"><path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z"/></svg>
+                      <svg x-show="loadingLibId === fav.id" class="w-4 h-4 flex-shrink-0 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <span class="truncate" x-text="fav.title"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="library.mixes && library.mixes.length">
+              <div>
+                <h3 class="text-[11px] font-bold text-surface-400 dark:text-surface-300 uppercase tracking-wider px-1 mb-1">Mixes</h3>
+                <div class="space-y-0.5">
+                  <template x-for="mx in library.mixes" :key="'mx-'+mx.id">
+                    <button @click="selectLibraryItem(mx)"
+                            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition text-left truncate"
+                            :class="{'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300': selectedLib && selectedLib.id === mx.id}">
+                      <svg x-show="loadingLibId !== mx.id" class="w-4 h-4 flex-shrink-0 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+                      <svg x-show="loadingLibId === mx.id" class="w-4 h-4 flex-shrink-0 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <span class="truncate" x-text="mx.title"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </aside>
+
+    <!-- CENTER: Search / Results / Library items -->
+    <main class="relative z-10 flex-1 min-w-0 w-full flex flex-col overflow-hidden">
+      <div x-show="showLibItems" x-cloak class="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <button @click="closeMobilePanels(); showLibItems = false" class="text-sm text-brand-600 hover:underline mb-1">&larr; Back</button>
+          <h2 class="text-xl font-bold" x-text="selectedLib ? selectedLib.title : ''"></h2>
+        </div>
+        <button @click="addAllFromLibrary()"
+                x-show="libItems.length"
+                class="w-full sm:w-auto justify-center flex items-center gap-2 text-sm bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg transition font-medium">
+          <svg x-show="!queueBusy" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          <svg x-show="queueBusy" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          Add All (<span x-text="libItems.filter(i => i.type === 'Track' || i.type === 'Video').length"></span>)
+        </button>
+      </div>
+
+      <div x-show="!showLibItems" class="px-4 sm:px-6 pt-4 sm:pt-5 pb-3">
+        <form @submit.prevent="doSearch()" class="flex flex-col sm:flex-row gap-2 sm:items-stretch">
+          <div class="flex-1 relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" x-model="q" placeholder="Search tracks, albums, artists..."
+                   class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm transition"/>
+          </div>
+          <select x-model="qType" class="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="Track">Tracks</option>
+            <option value="Album">Albums</option>
+            <option value="Artist">Artists</option>
+            <option value="Playlist">Playlists</option>
+            <option value="Video">Videos</option>
+          </select>
+          <button type="submit" :disabled="searching"
+                  class="w-full sm:w-auto justify-center flex items-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition">
+            <svg x-show="searching" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span x-text="searching ? 'Searching...' : 'Search'"></span>
+          </button>
+        </form>
+      </div>
+
+      <div class="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 min-h-0">
+        <div x-show="searching || libLoadingItems" class="flex items-center gap-2 text-xs text-surface-400 mb-2">
+          <div class="w-3.5 h-3.5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600"></div>
+          <span x-text="searching ? 'Searching...' : 'Loading items...'"></span>
+        </div>
+        <template x-if="(searching || libLoadingItems) && !results.length && !libItems.length">
+          <div class="flex flex-col items-center justify-center py-24">
+            <div class="w-8 h-8 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600 mb-3"></div>
+            <p class="text-sm text-surface-400">Loading...</p>
+          </div>
+        </template>
+        <template x-if="!searching && !libLoadingItems && !results.length && !libItems.length && !q">
+          <div class="flex flex-col items-center justify-center py-24 text-center">
+            <svg class="w-16 h-16 text-surface-300 dark:text-surface-600 mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+            <p class="text-surface-500 dark:text-surface-400 font-medium">Search for music or browse your library</p>
+          </div>
+        </template>
+        <template x-if="results.length && !showLibItems">
+          <div>
+            <p class="text-xs text-surface-400 mb-3 font-medium">Showing <span x-text="results.length"></span> results</p>
+            <div class="space-y-1">
+              <template x-for="(r, idx) in results" :key="'r-'+idx+'-'+((r && r.id) || '')">
+                <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800/60 transition group">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold overflow-hidden">
+                    <img x-show="r && r.image_url" :src="r.image_url" loading="lazy" decoding="async" @error="r.image_url=''" class="w-full h-full object-cover"/>
+                    <span x-show="!(r && r.image_url)" x-text="resultInitial(r)"></span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-medium text-sm truncate" x-text="resultTitle(r)"></span>
+                      <span x-show="r && r.explicit" class="text-[10px] bg-pink-500/10 text-pink-500 px-1.5 py-0.5 rounded font-bold">E</span>
+                      <span x-show="r && r.quality_badge" class="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                            :class="qualityBadgeClass(r && r.quality_badge ? r.quality_badge : '')"
+                            x-text="r && r.quality_badge ? r.quality_badge : ''"></span>
+                    </div>
+                    <div class="text-xs text-surface-400 truncate" x-text="resultSubtitle(r)"></div>
+                  </div>
+                  <span class="text-xs text-surface-400 flex-shrink-0" x-text="r && r.duration ? formatDuration(r.duration) : ''"></span>
+                  <button @click="addToQueue(r.id, r.type)" x-show="canQueueResult(r)"
+                          class="flex-shrink-0 p-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                    <svg x-show="addingQueueId !== String(r.id)" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    <svg x-show="addingQueueId === String(r.id)" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+        <template x-if="libItems.length && showLibItems">
+          <div>
+            <div class="space-y-1">
+              <template x-for="(r, idx) in libItems" :key="'l-'+idx+'-'+(r.id || '')">
+                <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800/60 transition group">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold overflow-hidden">
+                    <img x-show="r && r.image_url" :src="r.image_url" loading="lazy" decoding="async" @error="r.image_url=''" class="w-full h-full object-cover"/>
+                    <span x-show="!(r && r.image_url)" x-text="r.title ? r.title[0].toUpperCase() : '#'"></span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-medium text-sm truncate" x-text="r.title"></span>
+                      <span x-show="r.quality_badge" class="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                            :class="qualityBadgeClass(r.quality_badge)" x-text="r.quality_badge"></span>
+                    </div>
+                    <div class="text-xs text-surface-400 truncate"><span x-text="r.artist"></span></div>
+                  </div>
+                  <span class="text-xs text-surface-400 flex-shrink-0" x-text="r.duration ? formatDuration(r.duration) : ''"></span>
+                  <button @click="addToQueue(r.id, r.type)"
+                          class="flex-shrink-0 p-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                    <svg x-show="addingQueueId !== String(r.id)" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    <svg x-show="addingQueueId === String(r.id)" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </main>
+
+    <!-- RIGHT: Download Queue -->
+    <aside
+      class="flex flex-col border-l border-surface-200 dark:border-surface-700/60 bg-white dark:bg-surface-900 overflow-hidden
+             w-[min(20rem,88vw)] md:w-72 flex-shrink-0
+             fixed md:static z-40 md:z-auto right-0 top-14 md:top-auto bottom-0 md:bottom-auto h-[calc(100dvh-3.5rem)] md:h-auto
+             shadow-2xl md:shadow-none
+             transition-transform duration-200 ease-out
+             translate-x-full md:translate-x-0"
+      :class="{ 'translate-x-0': mobileQueueOpen }">
+      <div class="md:hidden shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-surface-200 dark:border-surface-700/60">
+        <span class="text-sm font-semibold text-surface-800 dark:text-surface-100">Queue</span>
+        <button type="button" @click="closeMobilePanels()" class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition" aria-label="Close queue panel">
+          <svg class="w-5 h-5 text-surface-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-3 border-b border-surface-200 dark:border-surface-700/60">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm">Queue</h3>
+          <span x-show="queue.length" class="text-xs bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded-full font-medium" x-text="queue.length"></span>
+        </div>
+        <div class="flex gap-2">
+          <button @click="startDownloads()" :disabled="!queue.length || downloading"
+                  class="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white py-2 rounded-lg transition">
+            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+            <span x-text="downloading ? 'Processing...' : 'Start'"></span>
+          </button>
+          <button @click="clearQueue()" :disabled="!queue.length || downloading"
+                  class="flex items-center justify-center px-3 rounded-lg border border-surface-200 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-40 text-xs transition">
+            Clear
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
+        <template x-if="!queue.length">
+          <p class="text-center text-sm text-surface-400 py-8">Your queue is empty</p>
+        </template>
+        <template x-for="item in queue" :key="'q-'+item.id">
+          <div class="p-2.5 rounded-xl border border-surface-100 dark:border-surface-700/50 fade-enter">
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="text-xs font-bold"
+                    :class="{
+                      'text-amber-400': item.status === 'waiting',
+                      'text-blue-400': item.status === 'downloading',
+                      'text-green-400': item.status === 'finished',
+                      'text-red-400': item.status === 'failed',
+                    }">
+                <span x-text="item.status === 'waiting' ? '&#9207;' : item.status === 'downloading' ? '&#9654;' : item.status === 'finished' ? '&#10003;' : '&#10007;'"></span>
+              </span>
+              <span class="text-xs font-medium truncate" x-text="item.title"></span>
+            </div>
+            <div x-show="item.status === 'downloading' || item.status === 'finished'" class="w-full h-1.5 bg-surface-100 dark:bg-surface-700 rounded-full overflow-hidden">
+              <div class="h-full bg-brand-500 rounded-full transition-all duration-300"
+                   :style="'width: ' + Math.max(0, Math.min(100, item.progress)) + '%'"></div>
+            </div>
+            <p x-show="item.error" class="text-[11px] text-red-400 mt-1 truncate" x-text="item.error"></p>
+            <p x-show="item.status === 'finished'" class="text-[11px] text-green-400 mt-1">Done</p>
+            <p x-show="item.status === 'failed'" class="text-[11px] text-red-400 mt-1">Failed</p>
+          </div>
+        </template>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div x-show="showSettings" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div x-show="showSettings" x-transition.opacity class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showSettings = false"></div>
+  <div x-show="showSettings" x-transition.scale class="relative w-full max-w-lg bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-surface-200 dark:border-surface-700">
+      <h3 class="text-lg font-semibold">Settings</h3>
+      <button @click="showSettings = false" class="p-1 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+      <div>
+        <div class="flex items-center justify-between gap-2 mb-1.5">
+          <label class="text-sm font-medium text-surface-600 dark:text-surface-300">Path templates</label>
+          <button type="button"
+                  @click="pathTemplatesExpanded = !pathTemplatesExpanded"
+                  class="shrink-0 p-1 rounded-lg border border-surface-200 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-800 transition text-surface-500 dark:text-surface-400"
+                  :aria-expanded="pathTemplatesExpanded"
+                  :title="pathTemplatesExpanded ? 'Collapse templates' : 'Expand templates'">
+            <svg x-show="!pathTemplatesExpanded" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            <svg x-show="pathTemplatesExpanded" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+          </button>
+        </div>
+        <div x-show="!pathTemplatesExpanded" class="rounded-xl border border-surface-200 dark:border-surface-600 bg-surface-50 dark:bg-surface-800/40 px-3 py-2 space-y-1">
+          <p class="text-[11px] text-surface-500 dark:text-surface-400">
+            <span x-show="cfg.use_single_path_template">One format for all types.</span>
+            <span x-show="!cfg.use_single_path_template">Per-type formats (track, album, playlist, mix, video).</span>
+          </p>
+          <p class="text-xs font-mono text-surface-700 dark:text-surface-200 truncate" x-text="cfg.path_template_track"></p>
+        </div>
+        <div x-show="pathTemplatesExpanded" x-cloak class="space-y-2">
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-sm text-surface-600 dark:text-surface-300">Use one format for all download paths</span>
+            <input type="checkbox" x-model="cfg.use_single_path_template" class="w-4 h-4 rounded text-brand-600 accent-brand-600"/>
+          </label>
+          <div class="flex flex-wrap gap-1.5">
+            <template x-for="tok in pathTokens" :key="'tok-'+tok.value">
+              <button type="button"
+                      draggable="true"
+                      @dragstart="dragPathToken($event, tok.value)"
+                      @click="insertPathToken(tok.value)"
+                      class="text-xs px-2 py-1 rounded-lg border border-surface-200 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-800 transition font-mono"
+                      x-text="tok.value"></button>
+            </template>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <label class="block text-xs text-surface-400 dark:text-surface-300 mb-1">Track</label>
+              <input type="text" x-model="cfg.path_template_track" @focus="pathTemplateTarget='path_template_track'"
+                     @dragover.prevent @drop.prevent="dropPathToken($event, 'path_template_track')"
+                     class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+            </div>
+            <div>
+              <label class="block text-xs text-surface-400 dark:text-surface-300 mb-1">Album</label>
+              <input type="text" x-model="cfg.path_template_album" @focus="pathTemplateTarget='path_template_album'"
+                     @dragover.prevent @drop.prevent="dropPathToken($event, 'path_template_album')"
+                     :disabled="cfg.use_single_path_template"
+                     class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+            </div>
+            <div>
+              <label class="block text-xs text-surface-400 dark:text-surface-300 mb-1">Playlist</label>
+              <input type="text" x-model="cfg.path_template_playlist" @focus="pathTemplateTarget='path_template_playlist'"
+                     @dragover.prevent @drop.prevent="dropPathToken($event, 'path_template_playlist')"
+                     :disabled="cfg.use_single_path_template"
+                     class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+            </div>
+            <div>
+              <label class="block text-xs text-surface-400 dark:text-surface-300 mb-1">Mix</label>
+              <input type="text" x-model="cfg.path_template_mix" @focus="pathTemplateTarget='path_template_mix'"
+                     @dragover.prevent @drop.prevent="dropPathToken($event, 'path_template_mix')"
+                     :disabled="cfg.use_single_path_template"
+                     class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+            </div>
+            <div>
+              <label class="block text-xs text-surface-400 dark:text-surface-300 mb-1">Video</label>
+              <input type="text" x-model="cfg.path_template_video" @focus="pathTemplateTarget='path_template_video'"
+                     @dragover.prevent @drop.prevent="dropPathToken($event, 'path_template_video')"
+                     :disabled="cfg.use_single_path_template"
+                     class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+            </div>
+          </div>
+          <p class="text-xs text-surface-400 dark:text-surface-300">Click or drag tokens into a field. Example: <code class="text-xs">{Artist}/{Album}/{Track}</code></p>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5 text-surface-600 dark:text-surface-300">Download engine</label>
+        <select x-model="cfg.active_engine"
+                class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
+          <option value="tidal-dl-ng">Tidal DL Pro engine (default)</option>
+          <option value="tiddl">tiddl (experimental)</option>
+        </select>
+        <p class="text-xs text-surface-400 dark:text-surface-300 mt-1">Library + downloads use the selected engine. Credentials stay in sync in <code class="text-xs">/config</code>.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5 text-surface-600 dark:text-surface-300">Audio Quality</label>
+        <select x-model="cfg.quality_audio"
+                class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
+          <option value="LOW">Low (128 kbps)</option>
+          <option value="HIGH">High (320 kbps)</option>
+          <option value="LOSSLESS">Lossless (16-bit / 44.1 kHz)</option>
+          <option value="HI_RES_LOSSLESS">Hi-Res Lossless (24-bit / 192 kHz)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5 text-surface-600 dark:text-surface-300">Video Quality</label>
+        <select x-model="cfg.quality_video"
+                class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
+          <option value="360">360p</option>
+          <option value="480">480p</option>
+          <option value="720">720p</option>
+          <option value="1080">1080p</option>
+        </select>
+      </div>
+      <div class="space-y-3">
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-sm text-surface-600 dark:text-surface-300">Skip existing files</span>
+          <input type="checkbox" x-model="cfg.skip_existing" class="w-4 h-4 rounded text-brand-600 accent-brand-600"/>
+        </label>
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-sm text-surface-600 dark:text-surface-300">Download delay (anti-ban)</span>
+          <input type="checkbox" x-model="cfg.download_delay" class="w-4 h-4 rounded text-brand-600 accent-brand-600"/>
+        </label>
+        <label class="flex items-center justify-between gap-3">
+          <span class="text-sm text-surface-600 dark:text-surface-300">
+            Concurrent downloads
+            <span class="block text-xs text-surface-400 dark:text-surface-300">Parallel tracks (1–5). Higher = faster, but risks TIDAL rate limits.</span>
+          </span>
+          <input type="number" min="1" max="5" step="1" x-model.number="cfg.downloads_concurrent_max"
+                 class="w-20 px-2 py-1 rounded-lg border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm text-right focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </label>
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-sm text-surface-600 dark:text-surface-300">Extract FLAC</span>
+          <input type="checkbox" x-model="cfg.extract_flac" class="w-4 h-4 rounded text-brand-600 accent-brand-600"/>
+        </label>
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-sm text-surface-600 dark:text-surface-300">Embed lyrics</span>
+          <input type="checkbox" x-model="cfg.lyrics_embed" class="w-4 h-4 rounded text-brand-600 accent-brand-600"/>
+        </label>
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-sm text-surface-600 dark:text-surface-300">Separate lyrics file</span>
+          <input type="checkbox" x-model="cfg.lyrics_file" class="w-4 h-4 rounded text-brand-600 accent-brand-600"/>
+        </label>
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-sm text-surface-600 dark:text-surface-300">Download videos</span>
+          <input type="checkbox" x-model="cfg.video_download" class="w-4 h-4 rounded text-brand-600 accent-brand-600"/>
+        </label>
+      </div>
+      <div class="pt-4 border-t border-surface-200 dark:border-surface-700">
+        <label class="block text-sm font-medium mb-1.5 text-surface-600 dark:text-surface-300">Download Path</label>
+        <input type="text" x-model="cfg.download_base_path" readonly
+               class="w-full px-3 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-surface-100 dark:bg-surface-800/70 text-sm text-surface-500 dark:text-surface-400 cursor-not-allowed font-mono"/>
+        <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          Keep this value unchanged. Configure host folder mapping outside the container (for example in Docker bind mounts) instead of editing this path here.
+        </p>
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 px-6 py-4 bg-surface-50 dark:bg-surface-800/50 border-t border-surface-200 dark:border-surface-700">
+      <button @click="showSettings = false" class="px-4 py-2 text-sm rounded-xl border border-surface-200 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-200 transition font-medium">Cancel</button>
+      <button @click="saveSettings()" class="px-4 py-2 text-sm bg-brand-600 hover:bg-brand-700 text-white rounded-xl transition font-medium">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="fixed top-4 right-4 z-[60] space-y-2 min-w-64 max-w-sm">
+  <template x-for="t in toasts" :key="t.id">
+    <div x-transition:enter="toast-enter" x-transition:leave="toast-leave"
+         :class="t.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
+         class="flex items-center gap-3 px-4 py-3 rounded-xl text-white text-sm shadow-lg shadow-black/20">
+      <span x-text="t.message"></span>
+      <button @click="dismissToast(t.id)" class="ml-auto opacity-70 hover:opacity-100" aria-label="Dismiss">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </template>
+</div>
+
+<script>
+function app() {
+  return {
+    /** Shown in the web UI header, login title, and browser tab (see init). */
+    appDisplayName: 'Tidal DL Pro',
+    auth: false,
+    dark: true,
+    q: '',
+    qType: 'Track',
+    searching: false,
+    results: [],
+    library: { playlists: [], mixes: [], favorites: [] },
+    libLoading: false,
+    libItems: [],
+    selectedLib: null,
+    showLibItems: false,
+    libLoadingItems: false,
+    queue: [],
+    downloading: false,
+    loginUrl: '',
+    loginInProgress: false,
+    loginStatus: '',
+    loginPollTimer: null,
+    showSettings: false,
+    pathTemplatesExpanded: false,
+    mobileLibraryOpen: false,
+    mobileQueueOpen: false,
+    loadingLibId: '',
+    queueBusy: false,
+    addingQueueId: '',
+    pathTemplateTarget: 'path_template_track',
+    pathTokens: [
+      { value: '{Artist}' },
+      { value: '{Album}' },
+      { value: '{Track}' },
+      { value: '{TrackNumber}' },
+      { value: '{Playlist}' },
+      { value: '{Mix}' },
+      { value: '{Explicit}' },
+      { value: '{Disc}' },
+    ],
+    cfg: {
+      download_base_path: '/downloads',
+      quality_audio: 'HIGH',
+      quality_video: '720',
+      skip_existing: true,
+      download_delay: true,
+      lyrics_embed: false,
+      lyrics_file: false,
+      video_download: true,
+      extract_flac: true,
+      downloads_concurrent_max: 3,
+      active_engine: 'tidal-dl-ng',
+      path_template_track: '{Artist}/{Track}',
+      path_template_album: '{Artist}/{Album}/{TrackNumber}. {Track}',
+      path_template_playlist: '{Playlist}/{TrackNumber}. {Artist} - {Track}',
+      path_template_mix: '{Mix}/{Artist} - {Track}',
+      path_template_video: '{Artist}/{Track}',
+      use_single_path_template: false,
+    },
+    toasts: [],
+    _toastId: 0,
+    ws: null,
+    renderTimer: null,
+    libraryPlaylistTimer: null,
+    renderBatchSize: 1,
+
+    async init() {
+      if (typeof document !== 'undefined') {
+        document.title = this.appDisplayName;
+      }
+      const saved = localStorage.getItem('dark');
+      if (saved !== null) {
+        this.dark = saved === 'true';
+      } else {
+        this.dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+      try {
+        await this.checkAuth();
+        if (this.auth) {
+          await this.fetchLibrary();
+          await this.fetchSettings();
+        }
+      } catch (e) {
+        console.error('init failed', e);
+        this.toast(e && e.message ? String(e.message) : 'Startup failed', 'error');
+      } finally {
+        try {
+          this.connectWs();
+        } catch (e) {
+          console.error('WebSocket setup failed', e);
+        }
+      }
+      if (typeof window !== 'undefined') {
+        var self = this;
+        window.addEventListener('resize', function() {
+          if (window.matchMedia('(min-width: 768px)').matches) {
+            self.closeMobilePanels();
+          }
+        });
+      }
+    },
+
+    async api(method, path, body) {
+      const ctrl = new AbortController();
+      const timeoutMs = 45000;
+      const timer = setTimeout(function() {
+        ctrl.abort();
+      }, timeoutMs);
+      const opts = { method, headers: {}, signal: ctrl.signal };
+      if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      try {
+        const r = await fetch(path, opts);
+        if (!r.ok) {
+          throw new Error(r.status + ' ' + r.statusText);
+        }
+        return await r.json();
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+
+    async checkAuth() {
+      try {
+        const d = await this.api('GET', '/api/status');
+        this.auth = !!d.authenticated;
+      } catch (e) { this.auth = false; }
+    },
+
+    async doLogin() {
+      try {
+        const d = await this.api('POST', '/api/auth/login');
+        if (d.authenticated) {
+          this.auth = true;
+          this.fetchLibrary();
+          this.fetchSettings();
+          return;
+        }
+        this.loginUrl = d.login_url;
+        this.loginInProgress = true;
+        this.loginStatus = 'Waiting for login...';
+        this.loginPollTimer = setInterval(async () => {
+          try {
+            const r = await this.api('POST', '/api/auth/finalize');
+            if (r.authenticated) {
+              this.auth = true;
+              this.loginInProgress = false;
+              clearInterval(this.loginPollTimer);
+              this.toast('Logged in successfully');
+              await this.fetchLibrary();
+              await this.fetchSettings();
+            } else {
+              this.loginStatus = 'Waiting for you to confirm on your device...';
+            }
+          } catch (e) { this.loginStatus = 'Polling...'; }
+        }, 3000);
+      } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    async doLogout() {
+      clearInterval(this.loginPollTimer);
+      try { await this.api('POST', '/api/auth/logout'); } catch (e) {}
+      this.auth = false;
+      this.queue = [];
+      this.results = [];
+      this._clearLibraryPlaylistTimer();
+      this.closeMobilePanels();
+      this.library = { playlists: [], mixes: [], favorites: [] };
+    },
+
+    async doSearch() {
+      if (!this.q.trim()) return;
+      this.closeMobilePanels();
+      this._clearRenderTimer();
+      this.searching = true;
+      this.showLibItems = false;
+      this.libItems = [];
+      this.results = [];
+      try {
+        const d = await this.api('POST', '/api/search', { query: this.q, media_type: this.qType });
+        this._progressiveAssign('results', d.results || []);
+      } catch (e) { this.toast(e.message, 'error'); }
+      finally { this.searching = false; }
+    },
+
+    async fetchLibrary() {
+      this.libLoading = true;
+      this._clearLibraryPlaylistTimer();
+      try {
+        const d = await this.api('GET', '/api/library/lists');
+        this.library.mixes = d.mixes || [];
+        this.library.favorites = d.favorites || [];
+        this.library.playlists = [];
+        this._progressiveAssignPlaylists(d.playlists || []);
+      } catch (e) {
+        this.toast('Failed to load library', 'error');
+        this.library = { playlists: [], mixes: [], favorites: [] };
+      }
+      finally { this.libLoading = false; }
+    },
+
+    async selectLibraryItem(item) {
+      this.closeMobilePanels();
+      this._clearRenderTimer();
+      this.selectedLib = item;
+      this.showLibItems = true;
+      this.libLoadingItems = true;
+      this.loadingLibId = String(item && item.id ? item.id : '');
+      this.libItems = [];
+      try {
+        const d = await this.api('GET', '/api/library/items/' + item.id);
+        this._progressiveAssign('libItems', d.items || []);
+      } catch (e) { this.toast('Failed to load items', 'error'); }
+      finally { this.libLoadingItems = false; this.loadingLibId = ''; }
+    },
+
+    async addAllFromLibrary() {
+      const downloadable = this.libItems.filter(function(i) { return i.type === 'Track' || i.type === 'Video'; });
+      if (!downloadable.length) return;
+      var ids = downloadable.map(function(i) { return i.id; }).join(',');
+      this.queueBusy = true;
+      try {
+        await this._bulkAdd(ids, downloadable[0].type);
+      } finally {
+        this.queueBusy = false;
+      }
+    },
+
+    async addToQueue(id, type) {
+      this.addingQueueId = String(id);
+      this.queueBusy = true;
+      try {
+        var r = await this.api('POST', '/api/download/add', { media_id: String(id), media_type: type.toLowerCase() });
+        if (r.added) this.toast('Added to queue');
+        var qr = await this.api('GET', '/api/download/queue');
+        this.queue = qr.queue || [];
+      } catch (e) { this.toast(e.message, 'error'); }
+      finally { this.addingQueueId = ''; this.queueBusy = false; }
+    },
+
+    async _bulkAdd(ids, type) {
+      try {
+        await this.api('POST', '/api/download/add', { media_id: ids, media_type: type });
+        var qr = await this.api('GET', '/api/download/queue');
+        this.queue = qr.queue || [];
+        this.toast('Added ' + ids.split(',').length + ' items to queue');
+      } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    async startDownloads() {
+      this.downloading = true;
+      try {
+        await this.api('POST', '/api/download/start');
+        this.toast('Downloads started');
+      } catch (e) {
+        this.toast(e.message, 'error');
+        this.downloading = false;
+      }
+    },
+
+    async clearQueue() {
+      try {
+        await this.api('DELETE', '/api/download/queue');
+      } catch (e) {}
+      this.queue = [];
+      this.downloading = false;
+    },
+
+    async fetchSettings() {
+      try { this.cfg = await this.api('GET', '/api/settings'); } catch (e) {}
+    },
+
+    async saveSettings() {
+      try {
+        if (this.cfg.use_single_path_template) {
+          this.cfg.path_template_album = this.cfg.path_template_track;
+          this.cfg.path_template_playlist = this.cfg.path_template_track;
+          this.cfg.path_template_mix = this.cfg.path_template_track;
+          this.cfg.path_template_video = this.cfg.path_template_track;
+        }
+        await this.api('PUT', '/api/settings', this.cfg);
+        this.toast('Settings saved');
+        this.showSettings = false;
+      } catch (e) { this.toast(e.message, 'error'); }
+    },
+
+    closeMobilePanels: function() {
+      this.mobileLibraryOpen = false;
+      this.mobileQueueOpen = false;
+    },
+
+    _clearRenderTimer: function() {
+      if (this.renderTimer) {
+        clearTimeout(this.renderTimer);
+        this.renderTimer = null;
+      }
+    },
+
+    _clearLibraryPlaylistTimer: function() {
+      if (this.libraryPlaylistTimer != null) {
+        if (typeof window !== 'undefined' && window.cancelAnimationFrame) {
+          window.cancelAnimationFrame(this.libraryPlaylistTimer);
+        }
+        clearTimeout(this.libraryPlaylistTimer);
+        this.libraryPlaylistTimer = null;
+      }
+    },
+
+    _progressiveAssignPlaylists: function(items) {
+      this._clearLibraryPlaylistTimer();
+      var all = Array.isArray(items) ? items : [];
+      this.library.playlists = [];
+      if (!all.length) return;
+      var i = 0;
+      var batch = Math.max(1, Number(this.renderBatchSize) || 1);
+      var self = this;
+      var schedule = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? function(fn) { return window.requestAnimationFrame(fn); }
+        : function(fn) { return setTimeout(fn, 16); };
+      function pushBatch() {
+        var next = all.slice(i, i + batch);
+        self.library.playlists = self.library.playlists.concat(next);
+        i += batch;
+        if (i < all.length) {
+          self.libraryPlaylistTimer = schedule(pushBatch);
+        } else {
+          self.libraryPlaylistTimer = null;
+        }
+      }
+      pushBatch();
+    },
+
+    _progressiveAssign: function(targetKey, items) {
+      this._clearRenderTimer();
+      var all = Array.isArray(items) ? items : [];
+      this[targetKey] = [];
+      if (!all.length) return;
+      var i = 0;
+      var batch = Math.max(1, Number(this.renderBatchSize) || 1);
+      var self = this;
+      var schedule = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? function(fn) { return window.requestAnimationFrame(fn); }
+        : function(fn) { return setTimeout(fn, 16); };
+      function pushBatch() {
+        var next = all.slice(i, i + batch);
+        self[targetKey] = self[targetKey].concat(next);
+        i += batch;
+        if (i < all.length) {
+          self.renderTimer = schedule(pushBatch);
+        } else {
+          self.renderTimer = null;
+        }
+      }
+      pushBatch();
+    },
+
+    dragPathToken: function(ev, token) {
+      if (!ev || !ev.dataTransfer) return;
+      ev.dataTransfer.setData('text/plain', String(token || ''));
+      ev.dataTransfer.effectAllowed = 'copy';
+    },
+
+    dropPathToken: function(ev, field) {
+      if (!ev || !ev.dataTransfer) return;
+      var token = ev.dataTransfer.getData('text/plain');
+      if (!token) return;
+      this.insertPathToken(token, field);
+    },
+
+    insertPathToken: function(token, field) {
+      var key = field || this.pathTemplateTarget || 'path_template_track';
+      var cur = String(this.cfg[key] || '');
+      if (cur && !cur.endsWith('/') && !cur.endsWith(' ') && !cur.endsWith('-')) cur += '/';
+      this.cfg[key] = cur + String(token || '');
+    },
+
+    connectWs() {
+      var self = this;
+      var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.ws = new WebSocket(proto + '//' + location.host + '/ws');
+      this.ws.onmessage = function(ev) {
+        try { self.handleWs(JSON.parse(ev.data)); } catch (e) {}
+      };
+      this.ws.onclose = function() { setTimeout(function() { self.connectWs(); }, 3000); };
+    },
+
+    async handleWs(msg) {
+      if (!msg) return;
+      if (msg.type === 'download_started' || msg.type === 'download_finished' || msg.type === 'download_failed') {
+        try {
+          var qr = await this.api('GET', '/api/download/queue');
+          this.queue = qr.queue || [];
+        } catch (e) {}
+      }
+      if (msg.type === 'all_done') { this.downloading = false; }
+    },
+
+    formatDuration: function(sec) {
+      if (!sec) return '';
+      var m = Math.floor(sec / 60);
+      var s = sec % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    },
+
+    resultSubtitle: function(r) {
+      var artist = (r && r.artist) ? String(r.artist) : '';
+      var album = (r && r.album) ? String(r.album) : '';
+      if (artist && album) return artist + ' · ' + album;
+      if (artist) return artist;
+      if (album) return album;
+      return (r && r.type) ? String(r.type) : '';
+    },
+
+    resultTitle: function(r) {
+      return (r && r.title) ? String(r.title) : '(untitled)';
+    },
+
+    resultInitial: function(r) {
+      var t = this.resultTitle(r);
+      return t && t !== '(untitled)' ? t[0].toUpperCase() : '#';
+    },
+
+    canQueueResult: function(r) {
+      if (!r || !r.id || !r.type) return false;
+      var t = String(r.type).toLowerCase();
+      return t === 'track' || t === 'video' || t === 'album' || t === 'playlist' || t === 'mix';
+    },
+
+    qualityBadgeClass: function(badge) {
+      if (!badge) return '';
+      var b = String(badge).toLowerCase();
+      if (b === 'hi-res') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+      if (b === 'lossless') return 'bg-teal-500/15 text-teal-700 dark:text-teal-300';
+      if (b === 'atmos') return 'bg-violet-500/15 text-violet-700 dark:text-violet-300';
+      if (b === '360') return 'bg-sky-500/15 text-sky-700 dark:text-sky-300';
+      if (b === 'high') return 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-300';
+      if (b === 'low') return 'bg-surface-100 text-surface-500 dark:bg-surface-800 dark:text-surface-400';
+      return 'bg-brand-500/10 text-brand-700 dark:text-brand-300';
+    },
+
+    dismissToast: function(id) {
+      var idx = this.toasts.findIndex(function(x) { return x.id === id; });
+      if (idx !== -1) this.toasts.splice(idx, 1);
+    },
+
+    toast: function(msg, type) {
+      if (!type) type = 'success';
+      var id = ++this._toastId;
+      var self = this;
+      this.toasts.push({ id: id, message: msg, type: type });
+      setTimeout(function() { self.dismissToast(id); }, 3000);
+    },
+  }
+}
+</script>
+
+</body>
+</html>

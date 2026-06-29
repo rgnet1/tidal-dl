@@ -1,9 +1,10 @@
 services:
   tidal-dl-pro-web:
-    build: .
+    image: ${APP_IMAGE:-ghcr.io/rgnet1/tidal-dl-pro:latest}
     container_name: tidal-dl-pro-web
+    pull_policy: always
     ports:
-      - "${TIDAL_DL_PRO_PORT:-8001}:8000"
+      - "8000:8000"
     environment:
       # Match the host user so bind-mounted files (./config, ./downloads) end
       # up owned by your account. Override in a .env file if needed.
@@ -12,10 +13,6 @@ services:
       # Optional: force default engine on boot (tidal-dl-ng | tiddl). Settings UI can override.
       # ACTIVE_ENGINE: "tidal-dl-ng"
     volumes:
-      # Persist TIDAL login tokens and app settings on the host.
-      # Container path /config is XDG_CONFIG_HOME, so settings.json and
-      # token.json are written to ./config/tidal_dl_ng/ on the host and
-      # survive rebuilds.
       - ./config:/config
       - ./downloads:/downloads
     restart: unless-stopped

@@ -1,0 +1,62 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+CHANGELOG.md
+.github/CONTRIBUTING.md
+docs/
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.pytest_cache
+htmlcov
+.venv
+venv/
+.venv/
+
+# Node.js
+web/frontend/node_modules
+web/frontend/build
+web/frontend/.git
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Local data
+downloads/
+config/
+*.log
+
+# Build artifacts
+dist/
+build/
+*.egg-info
+
+# Test files
+tests/
+test_*.py
+*_test.py 
