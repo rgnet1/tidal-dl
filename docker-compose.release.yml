@@ -1,6 +1,6 @@
 services:
   tidal-dl-pro-web:
-    image: ${APP_IMAGE:-ghcr.io/rgnet1/tidal-dl-pro:latest}
+    image: ${APP_IMAGE:-rgnet1/tidal-dl:latest}
     container_name: tidal-dl-pro-web
     pull_policy: always
     ports:
