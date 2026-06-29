@@ -36,6 +36,8 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          # linux/arm/v7 (32-bit ARM) dropped: pycryptodome, uvloop and httptools
+          # publish no armv7 wheels, so the slim image (no compiler) cannot build them.
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: rgnet1/tidal-dl:latest
