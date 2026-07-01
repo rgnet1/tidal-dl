@@ -22,7 +22,8 @@ WORKDIR /app
 # treats [standard] as a glob pattern and pip installs plain uvicorn, leaving
 # the WebSocket implementation (websockets/wsproto/httptools/uvloop) missing.
 RUN pip install \
-    "fastapi==0.115.*" \
+    "fastapi==0.139.*" \
+    "starlette>=1.3.1" \
     "uvicorn[standard]==0.34.*" \
     "websockets>=12" \
     "wsproto>=1.2" \
