@@ -26,7 +26,7 @@ RUN pip install \
     "uvicorn[standard]==0.34.*" \
     "websockets>=12" \
     "wsproto>=1.2" \
-    "tiddl>=3.3.0,<4" \
+    "tiddl>=3.4.0,<4" \
     "tomli-w>=1.0.0"
 
 COPY pyproject.toml poetry.lock README.md LICENSE /app/
