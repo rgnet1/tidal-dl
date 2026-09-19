@@ -24,6 +24,7 @@ WORKDIR /app
 RUN pip install \
     "fastapi==0.139.*" \
     "starlette>=1.3.1" \
+    "anyio>=4.14.2" \
     "uvicorn[standard]==0.34.*" \
     "websockets>=12" \
     "wsproto>=1.2" \
