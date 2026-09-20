@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import random
+import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from pathvalidate import sanitize_filename
 from tiddl.core.api import TidalAPI, TidalClient
@@ -23,9 +25,11 @@ from tiddl.core.auth import AuthAPI
 from tiddl.core.auth.exceptions import AuthClientError
 from tiddl.core.metadata import add_track_metadata
 from tiddl.core.utils import get_track_stream_data, get_video_stream_data
-from tiddl.core.utils.ffmpeg import extract_flac
 
-from .. import unified_state
+from .. import event_log, unified_state
+from ..audio_quality import effective_quality_for_track, summarize_delivery
+from ..flac_output import ensure_flac_file, resolve_ffmpeg
+from ..tidal_link import parse_tidal_link
 from ..ui_quality import quality_badge_for_catalog_track
 from .base import Engine
 
@@ -95,14 +99,6 @@ def _video_quality(s: str) -> StreamVideoQuality:
         "1080": "HIGH",
     }
     return m.get(str(s), "MEDIUM")
-
-
-def _file_begins_with_flac_magic(path: Path) -> bool:
-    try:
-        with path.open("rb") as f:
-            return f.read(4) == b"fLaC"
-    except OSError:
-        return False
 
 
 def _render_relpath(template: str, values: dict[str, Any], default_stem: str) -> Path:
@@ -225,6 +221,9 @@ class TiddlEngine(Engine):
         self._device_code: str | None = None
         self._client: TidalClient | None = None
         self._api: TidalAPI | None = None
+        self._flac_outcomes: list[Any] = []
+        self._active_template: str = ""
+        self._download_extra: dict[str, Any] = {}
 
     def _ensure_api(self) -> TidalAPI:
         if self._api is not None:
@@ -442,9 +441,7 @@ class TiddlEngine(Engine):
                 for row in chunk.items:
                     k = _playlist_row_kind(row)
                     kinds.add(k or "?")
-                    if k == "track":
-                        items.append(_item_to_ui(row.item))
-                    elif k == "video":
+                    if k == "track" or k == "video":
                         items.append(_item_to_ui(row.item))
                 got = len(chunk.items)
                 if got and not warned_unknown and kinds.isdisjoint({"track", "video"}):
@@ -486,9 +483,7 @@ class TiddlEngine(Engine):
                 chunk = _retry_api(api.get_album_items, aid, limit=100, offset=offset)
                 for row in chunk.items:
                     k = _playlist_row_kind(row)
-                    if k == "track":
-                        items.append(_item_to_ui(row.item))
-                    elif k == "video":
+                    if k == "track" or k == "video":
                         items.append(_item_to_ui(row.item))
                 got = len(chunk.items)
                 if got == 0:
@@ -526,6 +521,10 @@ class TiddlEngine(Engine):
         return _paginate_mix(list_id)
 
     def search(self, query: str, media_type: str) -> dict[str, Any]:
+        link = parse_tidal_link(query)
+        if link is not None:
+            item = self._lookup_link(*link)
+            return {"results": [item] if item else []}
         api = self._ensure_api()
         res = api.get_search(query)
         key = media_type.lower()
@@ -538,6 +537,32 @@ class TiddlEngine(Engine):
         }
         items = [_item_to_ui(m) for m in groups.get(key, res.tracks.items)]
         return {"results": items}
+
+    def _lookup_link(self, kind: str, media_id: str) -> dict[str, Any] | None:
+        """Load one catalog item from a parsed TIDAL link."""
+        api = self._ensure_api()
+        try:
+            if kind == "track":
+                obj: Any = api.get_track(int(media_id))
+            elif kind == "video":
+                obj = api.get_video(int(media_id))
+            elif kind == "album":
+                obj = api.get_album(int(media_id))
+            elif kind == "artist":
+                obj = api.get_artist(int(media_id))
+            elif kind == "playlist":
+                obj = api.get_playlist(media_id)
+            elif kind == "mix":
+                getter = getattr(api, "get_mix", None)
+                if not callable(getter):
+                    return {"id": media_id, "title": f"Mix {media_id}", "type": "Mix"}
+                obj = getter(media_id)
+            else:
+                return None
+            return _item_to_ui(obj)
+        except Exception:
+            logger.exception("tiddl could not open TIDAL link %s/%s", kind, media_id)
+            return None
 
     def resolve_media(self, media_id: str, media_type: str) -> dict[str, Any] | None:
         api = self._ensure_api()
@@ -575,24 +600,69 @@ class TiddlEngine(Engine):
         lo, hi = 3.0, 5.0
         time.sleep(round(random.uniform(lo, hi), 1))
 
-    def _download_album_tracks(self, album_id: int, abort: Callable[[], bool]) -> None:
+    def _emit_progress(
+        self,
+        entry: dict[str, Any],
+        percent: float,
+        songs_done: int | None = None,
+        songs_total: int | None = None,
+    ) -> None:
+        """Push a queue progress update without waiting for the album to finish."""
+        entry["progress"] = round(max(0.0, min(99.0, percent)), 1)
+        payload: dict[str, Any] = {
+            "type": "download_progress",
+            "id": str(entry.get("id", "")),
+            "title": str(entry.get("title", "")),
+            "progress": entry["progress"],
+        }
+        if songs_done is not None and songs_total:
+            entry["songs_done"] = songs_done
+            entry["songs_total"] = songs_total
+            payload["songs_done"] = songs_done
+            payload["songs_total"] = songs_total
+        self._broadcast(payload)
+
+    def _download_album_tracks(
+        self,
+        album_id: int,
+        abort: Callable[[], bool],
+        entry: dict[str, Any] | None = None,
+    ) -> None:
         api = self._ensure_api()
         us = unified_state.load_settings()
         conc = max(1, min(5, int(us.downloads_concurrent_max)))
         offset = 0
+        done = 0
+        total = 0
+        progress_lock = threading.Lock()
         while True:
             chunk = _retry_api(api.get_album_items, album_id, limit=100, offset=offset)
+            page_total = getattr(chunk, "totalNumberOfItems", None)
+            if isinstance(page_total, int) and page_total > 0:
+                total = page_total
 
-            def work(row: Any) -> None:
+            song_total = total
+
+            def work(row: Any, album_total: int = song_total) -> None:
+                nonlocal done
                 if abort():
                     return
                 k = _playlist_row_kind(row)
+                if entry is not None and album_total:
+                    with progress_lock:
+                        self._emit_progress(entry, done / album_total * 100, done, album_total)
                 if k == "track":
                     self._maybe_delay()
-                    self._download_track_file(int(row.item.id))
+                    self._download_track_file(int(row.item.id), path_template=us.format_album)
                 elif k == "video" and us.video_download:
                     self._maybe_delay()
                     self._download_video_file(int(row.item.id))
+                else:
+                    return
+                with progress_lock:
+                    done += 1
+                    if entry is not None and album_total:
+                        self._emit_progress(entry, done / album_total * 100, done, album_total)
 
             with ThreadPoolExecutor(max_workers=conc) as pool:
                 futs = [pool.submit(work, row) for row in chunk.items]
@@ -606,11 +676,17 @@ class TiddlEngine(Engine):
             if total is not None and offset >= int(total):
                 break
 
-    def _download_track_file(self, track_id: int) -> None:
+    def _download_track_file(
+        self,
+        track_id: int,
+        path_template: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
         api = self._ensure_api()
         us = unified_state.load_settings()
         track = api.get_track(track_id)
-        requested_quality = _track_quality(us.quality_audio)
+        requested_name = effective_quality_for_track(us.quality_audio, track)
+        requested_quality = _track_quality(requested_name)
         stream = api.get_track_stream(track_id, requested_quality)
         delivered_quality = str(getattr(stream, "audioQuality", "") or "")
         data, ext = get_track_stream_data(stream)
@@ -625,7 +701,7 @@ class TiddlEngine(Engine):
             album_artist = str(getattr(album.artist, "name", "") or "")
         track_num = getattr(track, "trackNumber", None)
         vol_num = getattr(track, "volumeNumber", None)
-        values = {
+        values: dict[str, Any] = {
             "artist_name": artist_name,
             "album_title": album_title,
             "track_title": str(track.title),
@@ -634,49 +710,43 @@ class TiddlEngine(Engine):
             "track_explicit": " [E]" if bool(getattr(track, "explicit", False)) else "",
             "album_explicit": "",
             "track_volume_num_optional": f"{vol_num}-" if isinstance(vol_num, int) and vol_num > 1 else "",
+            "playlist_name": "",
+            "mix_name": "",
+            "list_pos": "",
         }
-        rel = _render_relpath(us.format_track, values, f"{artist_name} - {track.title}")
+        values.update(extra or {})
+        template = str(path_template or us.format_track)
+        rel = _render_relpath(template, values, f"{artist_name} - {track.title}")
+        if rel.suffix.lower() in {".flac", ".m4a", ".mp4", ".aac", ".mp3"}:
+            rel = rel.with_suffix("")
         if not rel.suffix:
             rel = rel.with_name(rel.name + ext)
         out = base / rel
         out.parent.mkdir(parents=True, exist_ok=True)
-        if us.skip_existing and out.exists() and out.stat().st_size > 0:
-            logger.info("tiddl skip existing %s", out)
+        if us.skip_existing and out.with_suffix(".flac").exists() and out.with_suffix(".flac").stat().st_size > 0:
+            logger.info("tiddl skip existing %s", out.with_suffix(".flac"))
             return
-        out.write_bytes(data)
-
-        # Only try MP4->FLAC extraction when TIDAL actually delivered a
-        # Hi-Res FLAC stream wrapped in mp4. Checking the *requested* quality
-        # produces 0-byte .flac files when the account is downgraded to HIGH
-        # (AAC in .m4a) because ffmpeg -c copy can't lift a FLAC stream out.
-        if (
-            us.extract_flac
-            and ext.lower() in (".mp4", ".m4a")
-            and delivered_quality == "HI_RES_LOSSLESS"
-        ):
-            try:
-                flac_path = extract_flac(out)
-                if flac_path.exists() and flac_path.stat().st_size > 0:
-                    if flac_path != out:
-                        out.unlink(missing_ok=True)
-                    out = flac_path
-                else:
-                    logger.warning("tiddl extract_flac produced empty file; keeping %s", out)
-                    flac_path.unlink(missing_ok=True)
-            except Exception:
-                logger.exception("tiddl extract_flac failed; keeping container at %s", out)
+        if not (us.skip_existing and out.exists() and out.stat().st_size > 0 and out.suffix.lower() == ".flac"):
+            out.write_bytes(data)
+        ffmpeg_bin = resolve_ffmpeg(str(us.path_binary_ffmpeg or ""))
+        outcome = ensure_flac_file(
+            out if out.exists() else out.with_suffix(".flac"),
+            ffmpeg_bin,
+            source_quality=delivered_quality,
+        )
+        self._flac_outcomes.append(outcome)
+        out = outcome.path
         try:
-            if out.suffix.lower() == ".flac" and not _file_begins_with_flac_magic(out):
-                logger.warning("tiddl skipping metadata (file is not native FLAC): %s", out)
-            else:
-                add_track_metadata(out, track)
+            add_track_metadata(out, track)
         except Exception:
             logger.exception("tiddl add_track_metadata failed")
         logger.info(
-            "tiddl downloaded %s (requested=%s, delivered=%s, size=%d)",
+            "tiddl downloaded %s (requested=%s, delivered=%s, tier=%s, transcoded=%s, size=%d)",
             out,
             requested_quality,
             delivered_quality or "?",
+            outcome.tier,
+            outcome.transcoded,
             out.stat().st_size if out.exists() else 0,
         )
 
@@ -708,40 +778,67 @@ class TiddlEngine(Engine):
         logger.info("tiddl downloaded video %s", out)
 
     def download_entry(self, entry: dict[str, Any], abort: Callable[[], bool]) -> None:
-        self._broadcast({"type": "download_started", "title": str(entry["title"])})
+        title = str(entry["title"])
+        self._broadcast({"type": "download_started", "title": title})
+        event_log.append("info", f"Downloading: {title}", source="download")
+        notice: str | None = None
         try:
             if abort():
                 entry["status"] = "failed"
                 entry["progress"] = -1
                 entry["error"] = "Aborted"
+                event_log.append("warning", f"Aborted: {title}", source="download")
                 return
             api = self._ensure_api()
             us = unified_state.load_settings()
             et = str(entry["type"])
             eid = str(entry["id"])
+            kind = et.lower()
+            self._flac_outcomes = []
+            self._download_extra = {}
+            self._active_template = {
+                "album": us.format_album,
+                "artist": us.format_album,
+                "playlist": us.format_playlist,
+                "userplaylist": us.format_playlist,
+                "mix": us.format_mix,
+            }.get(kind, us.format_track)
+            if kind in ("playlist", "userplaylist"):
+                playlist_name = title
+                try:
+                    playlist = api.get_playlist(eid)
+                    playlist_name = str(getattr(playlist, "title", "") or getattr(playlist, "name", "") or title)
+                except Exception:
+                    logger.debug("tiddl could not load playlist title for %s", eid)
+                self._download_extra = {"playlist_name": playlist_name}
+            elif kind == "mix":
+                self._download_extra = {"mix_name": title}
             if et.lower() == "track":
                 self._maybe_delay()
-                self._download_track_file(int(eid))
+                self._download_track_file(int(eid), path_template=self._active_template)
             elif et.lower() == "video":
                 if not us.video_download:
                     raise RuntimeError("Video download disabled in settings")
                 self._maybe_delay()
                 self._download_video_file(int(eid))
             elif et.lower() == "album":
-                self._download_album_tracks(int(eid), abort)
+                self._download_album_tracks(int(eid), abort, entry)
             elif et.lower() in ("playlist", "userplaylist"):
                 offset = 0
                 conc = max(1, min(5, int(us.downloads_concurrent_max)))
                 while True:
                     chunk = _retry_api(api.get_playlist_items, eid, limit=100, offset=offset)
 
-                    def work_pl(row: Any) -> None:
+                    path_template = self._active_template
+                    row_extra = dict(self._download_extra)
+
+                    def work_pl(row: Any, template: str = path_template, extra: dict[str, Any] = row_extra) -> None:
                         if abort():
                             return
                         k = _playlist_row_kind(row)
                         if k == "track":
                             self._maybe_delay()
-                            self._download_track_file(int(row.item.id))
+                            self._download_track_file(int(row.item.id), path_template=template, extra=extra)
                         elif k == "video" and us.video_download:
                             self._maybe_delay()
                             self._download_video_file(int(row.item.id))
@@ -763,11 +860,14 @@ class TiddlEngine(Engine):
                 while True:
                     chunk = _retry_api(api.get_mix_items, eid, limit=100, offset=offset)
 
-                    def work_mx(row: Any) -> None:
+                    path_template = self._active_template
+                    row_extra = dict(self._download_extra)
+
+                    def work_mx(row: Any, template: str = path_template, extra: dict[str, Any] = row_extra) -> None:
                         if abort():
                             return
                         self._maybe_delay()
-                        self._download_track_file(int(row.item.id))
+                        self._download_track_file(int(row.item.id), path_template=template, extra=extra)
 
                     with ThreadPoolExecutor(max_workers=conc) as pool:
                         futs = [pool.submit(work_mx, row) for row in chunk.items]
@@ -796,16 +896,35 @@ class TiddlEngine(Engine):
 
             entry["status"] = "finished"
             entry["progress"] = 100
+            if self._flac_outcomes:
+                tier, notice = summarize_delivery(
+                    us.quality_audio,
+                    [item.tier for item in self._flac_outcomes],
+                    any(item.transcoded for item in self._flac_outcomes),
+                )
+                entry["delivered_tier"] = tier
+                entry["transcoded"] = any(item.transcoded for item in self._flac_outcomes)
+                entry["delivered_quality"] = ",".join(
+                    sorted({item.source_quality or item.tier for item in self._flac_outcomes})
+                )
+                if notice:
+                    entry["quality_notice"] = notice
+                    event_log.append("warning", f"{title}: {notice}", source="download")
+            event_log.append("info", f"Finished: {title}", source="download")
         except Exception as e:
             logger.exception("tiddl download error for %s", entry.get("title"))
             entry["status"] = "failed"
             entry["progress"] = -1
             entry["error"] = str(e)
+            event_log.append("error", f"Failed: {title}: {e}", source="download")
         finally:
-            self._broadcast(
-                {
-                    "type": f"download_{entry['status']}",
-                    "title": str(entry["title"]),
-                    "progress": entry["progress"],
-                }
-            )
+            payload: dict[str, Any] = {
+                "type": f"download_{entry['status']}",
+                "title": str(entry["title"]),
+                "progress": entry["progress"],
+                "delivered_tier": entry.get("delivered_tier"),
+                "transcoded": bool(entry.get("transcoded")),
+            }
+            if notice:
+                payload["quality_notice"] = notice
+            self._broadcast(payload)

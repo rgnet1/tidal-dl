@@ -478,6 +478,7 @@ class Download:
                         f.write(data)
                         # Advance progress bar.
                         self.progress.advance(p_task)
+                        self._notify_chunk_progress(p_task)
 
                 result = True
             except Exception:
@@ -1641,6 +1642,7 @@ class Download:
 
             # Advance progress bar.
             progress.advance(progress_task)
+            self._notify_item_finished()
 
             if not progress_stdout:
                 self.progress_gui.list_item.emit(progress.tasks[progress_task].percentage)
@@ -1766,6 +1768,26 @@ class Download:
         ffmpeg.execute()
 
         return path_media_out
+
+    def _notify_chunk_progress(self, task_id: TaskID) -> None:
+        """Optional hook so the web UI can refresh while a file is still downloading."""
+        hook = getattr(self, "on_chunk_progress", None)
+        if hook is None:
+            return
+        try:
+            hook(float(self.progress.tasks[task_id].percentage))
+        except Exception:
+            return
+
+    def _notify_item_finished(self) -> None:
+        """Optional hook after one item in an album or playlist finishes."""
+        hook = getattr(self, "on_item_finished", None)
+        if hook is None:
+            return
+        try:
+            hook()
+        except Exception:
+            return
 
     def _extract_video_stream(self, m3u8_variant: m3u8.M3U8, quality: int) -> tuple[m3u8.M3U8 | bool, str]:
         """Extract the best matching video stream from an m3u8 variant playlist.

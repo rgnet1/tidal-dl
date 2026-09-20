@@ -294,6 +294,26 @@ class TestSettings:
         assert response.status_code == 400
 
 
+class TestActivityLogs:
+    """Buffered download/TIDAL messages for the web UI log panel."""
+
+    def test_logs_list_and_clear(self, web_client: tuple[TestClient, FakeEngine, FakeEngine, Any]) -> None:
+        from web import event_log
+
+        client, *_ = web_client
+        event_log.clear()
+        event_log.append("info", "Test log line", source="test")
+        response = client.get("/api/logs")
+        assert response.status_code == 200
+        logs = response.json()["logs"]
+        assert any(row["message"] == "Test log line" for row in logs)
+
+        clear = client.delete("/api/logs")
+        assert clear.status_code == 200
+        assert clear.json() == {"ok": True}
+        assert client.get("/api/logs").json()["logs"] == []
+
+
 class TestWebSocket:
     """Real-time download progress channel."""
 

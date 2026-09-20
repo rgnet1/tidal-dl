@@ -1,3 +1,17 @@
+# v2.1.0
+
+Web UI release. Audio is saved as FLAC on both engines, albums keep their track order, and the queue shows live logs and per-song progress.
+
+- Hi-Res is requested only when that track offers it. 16-bit tracks are requested as CD lossless instead of falling back to AAC.
+- Successful audio downloads are always `.flac`. FLAC inside an MP4 is remuxed. A lossy stream is transcoded and badged Low.
+- Queue items show Hi-Res, CD, or Low. A toast explains when the file is below the requested quality.
+- New installs default to Hi-Res when available. Existing quality settings are left alone.
+- tiddl album downloads use the album path template, so files land in the album folder with track numbers.
+- The search bar accepts TIDAL links (`tidal.com` and `listen.tidal.com`, including `/browse/` and share suffixes).
+- The queue panel has an activity log. Copy is shown only while that log has lines.
+- Album progress advances once per finished song and shows `done / total` tracks. A single track still follows byte progress.
+- The queue panel width can be dragged on desktop and is remembered for the browser tab session.
+
 # v0.4.11
 
 - Fixes regarding empty metadata tags (also fixes #1).

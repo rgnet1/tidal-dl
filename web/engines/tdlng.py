@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+import threading
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from tidalapi import Album, Artist, Playlist, Quality, Track, Video
@@ -12,18 +15,105 @@ from tidal_dl_ng.download import Download
 from tidal_dl_ng.helper.path import get_format_template
 from tidal_dl_ng.helper.tidal import (
     favorite_function_factory,
-    get_tidal_media_id,
-    get_tidal_media_type,
     instantiate_media,
     search_results_all,
     user_media_lists,
 )
 
-from .. import unified_state
+from .. import event_log, unified_state
+from ..audio_quality import effective_quality_enum, summarize_delivery
+from ..download_progress import AlbumProgress
+from ..flac_output import FlacOutcome, ensure_flac_file, resolve_ffmpeg
+from ..tidal_link import parse_tidal_link
 from ..ui_quality import quality_badge_for_catalog_track
 from .base import Engine
 
 logger = logging.getLogger("tidal-dl-pro.web.tdlng")
+
+
+class _FlacNormalizingDownload(Download):
+    """Download worker that requests per-track quality and always keeps FLAC audio."""
+
+    def __init__(
+        self,
+        *args: Any,
+        user_quality: str,
+        ffmpeg_bin: str,
+        outcomes: list[FlacOutcome],
+        on_progress: Callable[[float], None] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._user_quality = user_quality
+        self._ffmpeg_bin = ffmpeg_bin
+        self._outcomes = outcomes
+        self._album_progress = AlbumProgress(lambda _percent: None)
+        self._report = on_progress
+        self._collection = False
+        self.on_chunk_progress = self._on_chunk_progress
+        self.on_item_finished = self._on_song_finished
+
+    def _on_chunk_progress(self, track_percent: float) -> None:
+        """Byte progress is only for a single track, not an album."""
+        if self._collection:
+            return
+        self._album_progress.chunk(threading.get_ident(), track_percent)
+
+    def _on_song_finished(self, _percent: float | None = None) -> None:
+        """Move the album bar by one song."""
+        if not self._collection or not self._album_progress.total:
+            return
+        percent, done, total = self._album_progress.song_finished()
+        if self._report is not None:
+            self._report(percent, done, total)
+
+    def _execute_collection_downloads(self, items: list, *args: Any, **kwargs: Any) -> list[Path]:
+        """Know the album length before tracks start so the bar steps per song."""
+        self._collection = True
+        self._album_progress.set_total(len(items))
+        return super()._execute_collection_downloads(items, *args, **kwargs)
+
+    def item(self, *args: Any, **kwargs: Any) -> tuple[bool, Path | str]:
+        """Request the best allowed quality, then force a ``.flac`` file for tracks."""
+        media = kwargs.get("media")
+        if isinstance(media, Track):
+            kwargs["quality_audio"] = effective_quality_enum(self._user_quality, media)
+        result = super().item(*args, **kwargs)
+        if not isinstance(result, tuple) or not isinstance(media, Track):
+            return result
+        ok, raw_path = result
+        if not ok or not raw_path:
+            return result
+        path = Path(raw_path)
+        if not path.is_file():
+            return result
+        outcome = ensure_flac_file(path, self._ffmpeg_bin)
+        self._outcomes.append(outcome)
+        return True, outcome.path
+
+
+def _apply_outcomes(entry: dict[str, Any], user_quality: str, outcomes: list[FlacOutcome]) -> str | None:
+    """Write badge fields onto a queue entry and return a toast, if any."""
+    if not outcomes:
+        return None
+    tier, notice = summarize_delivery(
+        user_quality,
+        [item.tier for item in outcomes],
+        any(item.transcoded for item in outcomes),
+    )
+    entry["delivered_tier"] = tier
+    entry["delivered_quality"] = ",".join(sorted({item.source_quality or item.tier for item in outcomes}))
+    entry["transcoded"] = any(item.transcoded for item in outcomes)
+    if notice:
+        entry["quality_notice"] = notice
+        event_log.append("warning", f"{entry.get('title', 'Track')}: {notice}", source="download")
+    else:
+        event_log.append(
+            "info",
+            f"{entry.get('title', 'Track')}: saved as {tier.replace('_', ' ')} FLAC",
+            source="download",
+        )
+    return notice
 
 _TYPE_TO_MEDIA_TYPE: dict[str, MediaType] = {
     "track": MediaType.TRACK,
@@ -277,9 +367,9 @@ class TdlngEngine(Engine):
             return {"items": children}
 
         tracks_iter = None
-        if hasattr(target, "all_tracks") and callable(getattr(target, "all_tracks")):
+        if hasattr(target, "all_tracks") and callable(target.all_tracks):
             tracks_iter = target.all_tracks()
-        elif hasattr(target, "tracks") and callable(getattr(target, "tracks")):
+        elif hasattr(target, "tracks") and callable(target.tracks):
             tracks_iter = target.tracks()
         if tracks_iter:
             for t in tracks_iter:
@@ -300,10 +390,14 @@ class TdlngEngine(Engine):
             "video": Video,
         }
         st = type_map.get(media_type.lower(), Track)
-        if query.startswith("http"):
-            mtype = get_tidal_media_type(query)
-            mid = get_tidal_media_id(query)
-            media = instantiate_media(self.tidal.session, mtype, mid) if mid else None
+        link = parse_tidal_link(query)
+        if link is not None:
+            kind, media_id = link
+            try:
+                media = instantiate_media(self.tidal.session, MediaType(kind), media_id)
+            except Exception:
+                logger.exception("Could not open TIDAL link %s/%s", kind, media_id)
+                media = None
             return {"results": [media_to_item(media)] if media else []}
         results = search_results_all(self.tidal.session, query, [st])
         items: list[dict[str, Any]] = []
@@ -338,7 +432,13 @@ class TdlngEngine(Engine):
             "type": type(media).__name__,
         }
 
-    def _build_download_worker(self) -> Download:
+    def _build_download_worker(
+        self,
+        outcomes: list[FlacOutcome],
+        ffmpeg_bin: str,
+        user_quality: str,
+        on_progress: Callable[[float], None] | None = None,
+    ) -> Download:
         handling = HandlingApp()
         progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -357,7 +457,7 @@ class TdlngEngine(Engine):
             disable=True,
             transient=True,
         )
-        return Download(
+        return _FlacNormalizingDownload(
             tidal_obj=self.tidal,
             skip_existing=self.settings.data.skip_existing,
             path_base=self.settings.data.download_base_path,
@@ -366,15 +466,23 @@ class TdlngEngine(Engine):
             progress_overall=progress_overall,
             event_abort=handling.event_abort,
             event_run=handling.event_run,
+            user_quality=user_quality,
+            ffmpeg_bin=ffmpeg_bin,
+            outcomes=outcomes,
+            on_progress=on_progress,
         )
 
     def download_entry(self, entry: dict[str, Any], abort: Callable[[], bool]) -> None:
-        self._broadcast({"type": "download_started", "title": str(entry["title"])})
+        title = str(entry["title"])
+        self._broadcast({"type": "download_started", "title": title})
+        event_log.append("info", f"Downloading: {title}", source="download")
+        notice: str | None = None
         try:
             if abort():
                 entry["status"] = "failed"
                 entry["progress"] = -1
                 entry["error"] = "Aborted"
+                event_log.append("warning", f"Aborted: {title}", source="download")
                 return
 
             media_type = _TYPE_TO_MEDIA_TYPE.get(str(entry["type"]).lower(), MediaType.TRACK)
@@ -386,8 +494,27 @@ class TdlngEngine(Engine):
             if not isinstance(file_template, str):
                 file_template = self.settings.data.format_track
 
-            dl = self._build_download_worker()
-            quality_audio = Quality(str(self.settings.data.quality_audio))
+            user_quality = str(self.settings.data.quality_audio)
+            ffmpeg_bin = resolve_ffmpeg(str(self.settings.data.path_binary_ffmpeg or ""))
+            outcomes: list[FlacOutcome] = []
+
+            def on_progress(percent: float, songs_done: int | None = None, songs_total: int | None = None) -> None:
+                entry["progress"] = round(max(0.0, min(99.0, percent)), 1)
+                payload: dict[str, Any] = {
+                    "type": "download_progress",
+                    "id": str(entry.get("id", "")),
+                    "title": title,
+                    "progress": entry["progress"],
+                }
+                if songs_done is not None and songs_total:
+                    entry["songs_done"] = songs_done
+                    entry["songs_total"] = songs_total
+                    payload["songs_done"] = songs_done
+                    payload["songs_total"] = songs_total
+                self._broadcast(payload)
+
+            dl = self._build_download_worker(outcomes, ffmpeg_bin, user_quality, on_progress)
+            quality_audio = Quality(user_quality)
             try:
                 quality_video = QualityVideo(str(self.settings.data.quality_video))
             except ValueError:
@@ -417,16 +544,26 @@ class TdlngEngine(Engine):
 
             entry["status"] = "finished" if success else "failed"
             entry["progress"] = 100 if success else -1
+            if success:
+                notice = _apply_outcomes(entry, user_quality, outcomes)
+                event_log.append("info", f"Finished: {title}", source="download")
+            else:
+                entry["error"] = entry.get("error") or "Download returned failure"
+                event_log.append("error", f"Failed: {title}: {entry['error']}", source="download")
         except Exception as e:
             logger.exception("Download error for %s", entry["title"])
             entry["status"] = "failed"
             entry["progress"] = -1
             entry["error"] = str(e)
+            event_log.append("error", f"Failed: {title}: {e}", source="download")
         finally:
-            self._broadcast(
-                {
-                    "type": f"download_{entry['status']}",
-                    "title": str(entry["title"]),
-                    "progress": entry["progress"],
-                }
-            )
+            payload: dict[str, Any] = {
+                "type": f"download_{entry['status']}",
+                "title": str(entry["title"]),
+                "progress": entry["progress"],
+                "delivered_tier": entry.get("delivered_tier"),
+                "transcoded": bool(entry.get("transcoded")),
+            }
+            if notice:
+                payload["quality_notice"] = notice
+            self._broadcast(payload)

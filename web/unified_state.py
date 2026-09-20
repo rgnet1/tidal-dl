@@ -11,10 +11,10 @@ import json
 import os
 import threading
 import time
+import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-import tomllib
 from pydantic import BaseModel, Field
 
 from tidal_dl_ng.helper.path import path_file_settings, path_file_token
@@ -93,7 +93,7 @@ class UnifiedAuth(BaseModel):
 
 class UnifiedSettings(BaseModel):
     download_base_path: str = "~/download"
-    quality_audio: str = "HIGH"  # LOW | HIGH | LOSSLESS | HI_RES_LOSSLESS
+    quality_audio: str = "HI_RES_LOSSLESS"  # LOW | HIGH | LOSSLESS | HI_RES_LOSSLESS
     quality_video: str = "480"
     skip_existing: bool = True
     download_delay: bool = True

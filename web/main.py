@@ -14,8 +14,7 @@ from pydantic import BaseModel
 from tidalapi import Quality
 
 from tidal_dl_ng.constants import QualityVideo
-
-from web import unified_state
+from web import event_log, unified_state
 from web.engines.base import Engine
 from web.engines.tdlng import TdlngEngine, reload_tidal_clients
 from web.engines.tiddl import TiddlEngine
@@ -161,6 +160,8 @@ async def _startup():
     # every ``run_coroutine_threadsafe`` silently no-op (queues coroutines to
     # a loop nothing is draining).
     _loop = asyncio.get_running_loop()
+    event_log.set_broadcast(broadcast)
+    event_log.install_ui_log_handler()
 
     unified_state.migrate_from_native_if_needed()
     us = unified_state.load_settings()
@@ -398,6 +399,18 @@ def download_queue_clear():
     return {"ok": True}
 
 
+@app.get("/api/logs")
+def logs_get(limit: int = 200):
+    """Recent download/TIDAL log lines for the web UI (not full container stdout)."""
+    return {"logs": event_log.list_entries(limit)}
+
+
+@app.delete("/api/logs")
+def logs_clear():
+    event_log.clear()
+    return {"ok": True}
+
+
 @app.get("/api/settings")
 def settings_get():
     s = unified_state.load_settings()
@@ -488,6 +501,7 @@ def _download_one_entry(entry: dict[str, Any]) -> None:
         entry["status"] = "failed"
         entry["progress"] = -1
         entry["error"] = f"Unknown engine: {name}"
+        event_log.append("error", f"Download failed ({entry.get('title', '?')}): unknown engine {name}", source="download")
         broadcast(
             {
                 "type": "download_failed",
@@ -500,6 +514,7 @@ def _download_one_entry(entry: dict[str, Any]) -> None:
         entry["status"] = "failed"
         entry["progress"] = -1
         entry["error"] = "Not authenticated with TIDAL"
+        event_log.append("error", f"Download skipped ({entry.get('title', '?')}): not authenticated", source="download")
         broadcast(
             {
                 "type": "download_failed",
@@ -544,6 +559,11 @@ def _process_queue():
                 entry["status"] = "failed"
                 entry["progress"] = -1
                 entry["error"] = f"Worker crashed: {e}"
+                event_log.append(
+                    "error",
+                    f"Download worker crashed ({entry.get('title', '?')}): {e}",
+                    source="download",
+                )
 
     broadcast({"type": "all_done"})
 
