@@ -33,7 +33,7 @@ RUN pip install \
     "tomli-w>=1.0.0"
 
 COPY pyproject.toml poetry.lock README.md LICENSE /app/
-COPY engines/ /app/engine/
+COPY engines/ /app/engines/
 RUN pip install .
 
 COPY web/ /app/web/
