@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-7.2 -7.2 38.4 38.4">
+  <!-- Same mark as the web UI header: brand-600 tile + Heroicons musical-note.
+       Single viewBox so the glyph stays centered (no nested <svg>, which
+       ImageMagick's renderer ignores x/y on). 7.2 units of padding matches
+       the header's 20px icon in a 32px tile. -->
+  <rect x="-7.2" y="-7.2" width="38.4" height="38.4" rx="9.6" fill="#1d6ef1"/>
+  <path
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+  />
+</svg>

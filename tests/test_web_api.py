@@ -19,6 +19,28 @@ class TestStatusAndIndex:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "Tidal DL Pro" in response.text or "app()" in response.text
+        assert "/favicon.svg" in response.text
+        assert "/favicon.png" in response.text
+
+    def test_favicon_svg(self, web_client: tuple[TestClient, FakeEngine, FakeEngine, Any]) -> None:
+        client, *_ = web_client
+        response = client.get("/favicon.svg")
+        assert response.status_code == 200
+        assert "image/svg+xml" in response.headers["content-type"]
+        assert b"<svg" in response.content
+
+    def test_favicon_png(self, web_client: tuple[TestClient, FakeEngine, FakeEngine, Any]) -> None:
+        client, *_ = web_client
+        response = client.get("/favicon.png")
+        assert response.status_code == 200
+        assert "image/png" in response.headers["content-type"]
+        assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_favicon_ico(self, web_client: tuple[TestClient, FakeEngine, FakeEngine, Any]) -> None:
+        client, *_ = web_client
+        response = client.get("/favicon.ico")
+        assert response.status_code == 200
+        assert response.content[:4] == b"\x00\x00\x01\x00"
 
     def test_status_unauthenticated(self, web_client: tuple[TestClient, FakeEngine, FakeEngine, Any]) -> None:
         client, fake_tdlng, _, main = web_client
@@ -257,6 +279,33 @@ class TestDownloadQueue:
         assert final_status == "done"
         assert len(fake_tdlng.download_calls) == 1
         assert fake_tdlng.download_calls[0]["title"] == "Download Me"
+
+    def test_repeat_queue_downloads_once(self, web_client: tuple[TestClient, FakeEngine, FakeEngine, Any]) -> None:
+        client, fake_tdlng, _, _ = web_client
+        fake_tdlng.authenticated = True
+        fake_tdlng.resolve_map = {
+            "42": {"id": "42", "title": "Download Me", "type": "Track"},
+        }
+        client.post("/api/download/add", json={"media_id": "42", "media_type": "Track"})
+        client.post("/api/download/start")
+
+        deadline = time.time() + 5.0
+        while time.time() < deadline and len(fake_tdlng.download_calls) < 1:
+            time.sleep(0.05)
+        assert len(fake_tdlng.download_calls) == 1
+
+        client.post("/api/download/add", json={"media_id": "42", "media_type": "Track"})
+        client.post("/api/download/start")
+        deadline = time.time() + 5.0
+        skipped = ""
+        while time.time() < deadline:
+            queue = client.get("/api/download/queue").json()["queue"]
+            if len(queue) >= 2 and queue[-1]["status"] == "finished":
+                skipped = queue[-1]["status"]
+                break
+            time.sleep(0.05)
+        assert skipped == "finished"
+        assert len(fake_tdlng.download_calls) == 1
 
 
 class TestSettings:

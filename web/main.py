@@ -13,11 +13,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from tidalapi import Quality
 
+from engines.base import Engine
+from engines.tidal_dl import TiddlEngine
+from engines.tidal_dl_pro import TdlngEngine, reload_tidal_clients
 from tidal_dl_ng.constants import QualityVideo
 from web import event_log, unified_state
-from web.engines.base import Engine
-from web.engines.tdlng import TdlngEngine, reload_tidal_clients
-from web.engines.tiddl import TiddlEngine
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +33,10 @@ ws_connections: list[WebSocket] = []
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="dl")
 _abort_event = Event()
 _queue_lock = Lock()
+_session_download_lock = Lock()
+# Media ids claimed by this process. A second queue of the same id does not
+# download again, even when skip_existing is off. A failed attempt releases the id.
+_session_downloaded_ids: set[str] = set()
 _loop: asyncio.AbstractEventLoop | None = None
 
 ENGINES: dict[str, Engine] = {}
@@ -396,6 +400,8 @@ def download_start():
 @app.delete("/api/download/queue")
 def download_queue_clear():
     download_queue.clear()
+    with _session_download_lock:
+        _session_downloaded_ids.clear()
     return {"ok": True}
 
 
@@ -492,6 +498,29 @@ def _fail_waiting(message: str) -> None:
             entry["error"] = message
 
 
+def _skip_repeat_download(entry: dict[str, Any]) -> None:
+    """Mark a queue row finished without fetching it again.
+
+    Args:
+        entry: Queue item whose TIDAL id was already downloaded in this process.
+    """
+    entry["status"] = "finished"
+    entry["progress"] = 100
+    entry["error"] = None
+    event_log.append(
+        "info",
+        f"Skipped repeat download: {entry.get('title', entry.get('id', ''))}",
+        source="download",
+    )
+    broadcast(
+        {
+            "type": "download_finished",
+            "title": str(entry["title"]),
+            "progress": 100,
+        }
+    )
+
+
 def _download_one_entry(entry: dict[str, Any]) -> None:
     # Match UI: processing uses the engine selected in settings now, not the
     # engine active when the item was queued (TIDAL media ids are shared).
@@ -501,7 +530,9 @@ def _download_one_entry(entry: dict[str, Any]) -> None:
         entry["status"] = "failed"
         entry["progress"] = -1
         entry["error"] = f"Unknown engine: {name}"
-        event_log.append("error", f"Download failed ({entry.get('title', '?')}): unknown engine {name}", source="download")
+        event_log.append(
+            "error", f"Download failed ({entry.get('title', '?')}): unknown engine {name}", source="download"
+        )
         broadcast(
             {
                 "type": "download_failed",
@@ -523,7 +554,26 @@ def _download_one_entry(entry: dict[str, Any]) -> None:
             }
         )
         return
-    eng.download_entry(entry, _abort_event.is_set)
+    media_id = str(entry.get("id") or "")
+    repeat = False
+    with _session_download_lock:
+        if media_id and media_id in _session_downloaded_ids:
+            repeat = True
+        elif media_id:
+            _session_downloaded_ids.add(media_id)
+    if repeat:
+        _skip_repeat_download(entry)
+        return
+    try:
+        eng.download_entry(entry, _abort_event.is_set)
+        if media_id and str(entry.get("status")) not in {"finished", "done"}:
+            with _session_download_lock:
+                _session_downloaded_ids.discard(media_id)
+    except Exception:
+        if media_id:
+            with _session_download_lock:
+                _session_downloaded_ids.discard(media_id)
+        raise
 
 
 def _process_queue():
@@ -574,6 +624,24 @@ def _index_path():
     return str(p) if p.exists() else str(base.parent / "index.html")
 
 
+def _web_asset(name: str) -> Path:
+    """Return a file that ships next to the web UI.
+
+    Args:
+        name: Filename under the ``web/`` directory.
+
+    Returns:
+        Absolute path to the asset.
+
+    Raises:
+        HTTPException: If the file is missing.
+    """
+    path = Path(__file__).parent / name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail=f"{name} not found")
+    return path
+
+
 @app.get("/")
 def index():
     return FileResponse(
@@ -586,6 +654,24 @@ def index():
             "Expires": "0",
         },
     )
+
+
+@app.get("/favicon.svg")
+def favicon_svg() -> FileResponse:
+    """Serve the vector app icon."""
+    return FileResponse(_web_asset("favicon.svg"), media_type="image/svg+xml")
+
+
+@app.get("/favicon.png")
+def favicon_png() -> FileResponse:
+    """Serve the 256x256 PNG app icon."""
+    return FileResponse(_web_asset("favicon.png"), media_type="image/png")
+
+
+@app.get("/favicon.ico")
+def favicon_ico() -> FileResponse:
+    """Serve the ICO fallback browsers request from the site root."""
+    return FileResponse(_web_asset("favicon.ico"), media_type="image/x-icon")
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from concurrent import futures
-from threading import Event
+from threading import Event, Lock
 from uuid import uuid4
 
 import m3u8
@@ -34,10 +34,10 @@ from tidalapi.media import (
     Codec,
     Quality,
     Stream,
-    StreamManifest,
     VideoExtensions,
 )
 
+from engines.track_manifest import TrackManifestError, fetch_audio_manifest, uses_openapi_manifest
 from tidal_dl_ng.config import Settings, Tidal
 from tidal_dl_ng.constants import (
     CHUNK_SIZE,
@@ -72,7 +72,7 @@ from tidal_dl_ng.helper.tidal import (
     name_builder_title,
 )
 from tidal_dl_ng.metadata import Metadata
-from tidal_dl_ng.model.downloader import DownloadSegmentResult, TrackStreamInfo
+from tidal_dl_ng.model.downloader import DownloadSegmentResult, MediaStreamManifest, TrackStreamInfo
 from tidal_dl_ng.model.gui_data import ProgressBars
 
 
@@ -102,6 +102,27 @@ class RequestsClient:
         o.raise_for_status()
 
         return o.text, o.url
+
+
+def _dedupe_media_items(items: list) -> list:
+    """Keep the first copy of each media id.
+
+    Args:
+        items: Tracks, videos, or albums selected for one collection download.
+
+    Returns:
+        The same order, without a repeated id. Items with no id are kept.
+    """
+    seen: set[str] = set()
+    unique: list = []
+    for item_media in items:
+        item_id = str(getattr(item_media, "id", "") or "")
+        if item_id:
+            if item_id in seen:
+                continue
+            seen.add(item_id)
+        unique.append(item_media)
+    return unique
 
 
 # TODO: Use pathlib.Path everywhere
@@ -158,6 +179,10 @@ class Download:
         self.path_base = path_base
         self.event_abort = event_abort
         self.event_run = event_run
+        # One collection pass must not fetch the same track twice. This is
+        # independent of skip_existing, which only looks at files already on disk.
+        self._claimed_media_ids: set[str] = set()
+        self._claimed_media_lock = Lock()
 
         if not self.settings.data.path_binary_ffmpeg and (
             self.settings.data.video_convert_mp4 or self.settings.data.extract_flac
@@ -174,13 +199,13 @@ class Download:
     def _get_media_urls(
         self,
         media: Track | Video,
-        stream_manifest: StreamManifest | None = None,
+        stream_manifest: MediaStreamManifest | None = None,
     ) -> list[str]:
         """Extract URLs for the given media item.
 
         Args:
             media (Track | Video): The media item to download.
-            stream_manifest (StreamManifest | None, optional): Stream manifest for tracks. Defaults to None.
+            stream_manifest (MediaStreamManifest | None, optional): Stream manifest for tracks. Defaults to None.
 
         Returns:
             list[str]: List of URLs for the media segments.
@@ -316,7 +341,7 @@ class Download:
         path_file: pathlib.Path,
         dl_segment_results: list[DownloadSegmentResult],
         media: Track | Video,
-        stream_manifest: StreamManifest | None = None,
+        stream_manifest: MediaStreamManifest | None = None,
     ) -> tuple[bool, pathlib.Path]:
         """Merge segments, decrypt if needed, and return the final file path.
 
@@ -325,7 +350,7 @@ class Download:
             path_file (pathlib.Path): Path to the output file.
             dl_segment_results (list[DownloadSegmentResult]): List of segment download results.
             media (Track | Video): The media item.
-            stream_manifest (StreamManifest | None, optional): Stream manifest for tracks. Defaults to None.
+            stream_manifest (MediaStreamManifest | None, optional): Stream manifest for tracks. Defaults to None.
 
         Returns:
             tuple[bool, pathlib.Path]: (Success, path to downloaded or decrypted file)
@@ -354,7 +379,7 @@ class Download:
         self,
         media: Track | Video,
         path_file: pathlib.Path,
-        stream_manifest: StreamManifest | None = None,
+        stream_manifest: MediaStreamManifest | None = None,
         event_stop: Event | None = None,
     ) -> tuple[bool, pathlib.Path]:
         """Download a media item (track or video), handling segments and merging.
@@ -362,7 +387,7 @@ class Download:
         Args:
             media (Track | Video): The media item to download.
             path_file (pathlib.Path): Path to the output file.
-            stream_manifest (StreamManifest | None, optional): Stream manifest for tracks. Defaults to None.
+            stream_manifest (MediaStreamManifest | None, optional): Stream manifest for tracks. Defaults to None.
             event_stop (Event | None, optional): Event to stop the download. Defaults to None.
 
         Returns:
@@ -529,6 +554,21 @@ class Download:
 
         return result
 
+    def _claim_media_once(self, media_id: str) -> bool:
+        """Reserve a media id for a single fetch in this download job.
+
+        Args:
+            media_id: TIDAL id about to be downloaded.
+
+        Returns:
+            True when this call owns the fetch. False when the id was already reserved.
+        """
+        with self._claimed_media_lock:
+            if media_id in self._claimed_media_ids:
+                return False
+            self._claimed_media_ids.add(media_id)
+            return True
+
     def item(
         self,
         file_template: str,
@@ -566,6 +606,13 @@ class Download:
         # Check for stop signal before doing anything
         if self.event_abort.is_set() or (event_stop and event_stop.is_set()):
             return False, ""
+
+        # The collection runner used to submit the whole list again whenever the
+        # progress bar was not finished. A second pass downloads every track
+        # again when skip_existing is off, so each id is fetched once per job.
+        media_key = str(getattr(media, "id", None) or media_id or "")
+        if media_key and not self._claim_media_once(media_key):
+            return True, ""
 
         # Step 1: Validate and prepare media
         validated_media = self._validate_and_prepare_media(media, media_id, media_type, video_download)
@@ -830,16 +877,16 @@ class Download:
             event_stop,
         )
 
-    def _get_stream_info(self, media: Track | Video) -> tuple[StreamManifest | None, str, bool, Stream | None]:
+    def _get_stream_info(self, media: Track | Video) -> tuple[MediaStreamManifest | None, str, bool, Stream | None]:
         """Get stream information for media.
 
         Args:
             media (Track | Video): Media item.
 
         Returns:
-        tuple[StreamManifest | None, str, bool, Stream | None]: Stream info.
+        tuple[MediaStreamManifest | None, str, bool, Stream | None]: Stream info.
         """
-        stream_manifest: StreamManifest | None = None
+        stream_manifest: MediaStreamManifest | None = None
         media_stream: Stream | None = None
         do_flac_extract: bool = False
         file_extension: str = ""
@@ -935,6 +982,11 @@ class Download:
                 self.fn_logger.error(f"Failed to restore normal session for track: {media.id}")
                 return TrackStreamInfo(None, "", False, None)
 
+        # The v1 playback endpoint only returns AAC now. Lossless, hi-res, and
+        # Atmos manifests come from openapi.tidal.com/v2/trackManifests.
+        if uses_openapi_manifest(self.session.audio_quality, atmos=want_atmos):
+            return self._openapi_track_stream_info(media, want_atmos)
+
         media_stream = self.session.track(media.id).get_stream() if want_atmos else media.get_stream()
 
         stream_manifest = media_stream.get_stream_manifest()
@@ -954,11 +1006,46 @@ class Download:
             media_stream=media_stream,
         )
 
+    def _openapi_track_stream_info(self, media: Track, want_atmos: bool) -> TrackStreamInfo:
+        """Load a clear FLAC or Atmos manifest from the OpenAPI v2 endpoint.
+
+        Args:
+            media (Track): Track to stream.
+            want_atmos (bool): Request Dolby Atmos (``EAC3_JOC``) instead of FLAC.
+
+        Returns:
+            TrackStreamInfo: Manifest and extension, or empty values when TIDAL rejects the manifest.
+        """
+        token = str(getattr(self.session, "access_token", "") or "")
+        try:
+            manifest = fetch_audio_manifest(token, int(media.id), self.session.audio_quality, atmos=want_atmos)
+        except TrackManifestError:
+            self.fn_logger.exception(f"OpenAPI track manifest failed for '{name_builder_item(media)}'.")
+            return TrackStreamInfo(None, "", False, None)
+
+        file_extension = manifest.file_extension
+        requires_flac_extraction = False
+        if self.settings.data.extract_flac and (
+            manifest.codecs.upper() == Codec.FLAC and file_extension != AudioExtensions.FLAC
+        ):
+            file_extension = AudioExtensions.FLAC
+            requires_flac_extraction = True
+
+        # Replay gain is not part of the v2 manifest. Keep catalog tagging working
+        # with the same defaults tidalapi uses when gain is absent.
+        gain = Stream()
+        return TrackStreamInfo(
+            stream_manifest=manifest,
+            file_extension=file_extension,
+            requires_flac_extraction=requires_flac_extraction,
+            media_stream=gain,
+        )
+
     def _perform_actual_download(
         self,
         media: Track | Video,
         path_media_dst: pathlib.Path,
-        stream_manifest: StreamManifest | None,
+        stream_manifest: MediaStreamManifest | None,
         do_flac_extract: bool,
         is_parent_album: bool,
         media_stream: Stream | None,
@@ -969,7 +1056,7 @@ class Download:
         Args:
             media (Track | Video): Media item.
             path_media_dst (pathlib.Path): Destination file path.
-            stream_manifest (StreamManifest | None): Stream manifest.
+            stream_manifest (MediaStreamManifest | None): Stream manifest.
             do_flac_extract (bool): Whether to extract FLAC.
             is_parent_album (bool): Whether this is a parent album.
             media_stream (Stream | None): Media stream.
@@ -1464,6 +1551,7 @@ class Download:
         # Set up download context
         download_context = self._setup_collection_download_context(media, file_template, video_download)
         file_name_relative, list_media_name, list_media_name_short, items, progress_stdout = download_context
+        items = _dedupe_media_items(items)
 
         # Set up progress tracking
         progress: Progress = self.progress_overall if self.progress_overall else self.progress
@@ -1583,32 +1671,26 @@ class Download:
 
             return result_dirs
 
-        # Iterate through list items
-        while not progress.finished:
-            with futures.ThreadPoolExecutor(max_workers=self.settings.data.downloads_concurrent_max) as executor:
-                # Dispatch all download tasks to worker threads
-                download_futures: list[futures.Future] = [
-                    executor.submit(
-                        self.item,
-                        media=item_media,
-                        file_template=file_name_relative,
-                        quality_audio=quality_audio,
-                        quality_video=quality_video,
-                        download_delay=download_delay,
-                        is_parent_album=is_album,
-                        list_position=count + 1,
-                        list_total=list_total,
-                        event_stop=event_stop,
-                    )
-                    for count, item_media in enumerate(items)
-                ]
+        # One pass only. Looping until the progress bar finished resubmitted every
+        # track, and with skip_existing off that fetched each file a second time.
+        with futures.ThreadPoolExecutor(max_workers=self.settings.data.downloads_concurrent_max) as executor:
+            download_futures: list[futures.Future] = [
+                executor.submit(
+                    self.item,
+                    media=item_media,
+                    file_template=file_name_relative,
+                    quality_audio=quality_audio,
+                    quality_video=quality_video,
+                    download_delay=download_delay,
+                    is_parent_album=is_album,
+                    list_position=count + 1,
+                    list_total=list_total,
+                    event_stop=event_stop,
+                )
+                for count, item_media in enumerate(items)
+            ]
 
-                # Process download results
-                result_dirs = self._process_download_futures(download_futures, progress, progress_task, progress_stdout)
-
-                # Check for abort signal
-                if self.event_abort.is_set() or (event_stop and event_stop.is_set()):
-                    return result_dirs
+            result_dirs = self._process_download_futures(download_futures, progress, progress_task, progress_stdout)
 
         return result_dirs
 

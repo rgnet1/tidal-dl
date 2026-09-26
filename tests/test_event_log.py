@@ -47,6 +47,19 @@ def test_broadcast_failure_does_not_drop_the_line() -> None:
     assert event_log.list_entries()[-1]["message"] == "still stored"
 
 
+def test_child_logger_is_recorded_once() -> None:
+    handler = event_log.install_ui_log_handler()
+    event_log.install_ui_log_handler()
+    child = logging.getLogger("tidal-dl-pro.web.tdlng")
+    try:
+        child.info("Downloaded item 'Once'")
+        matches = [row for row in event_log.list_entries() if row["message"] == "Downloaded item 'Once'"]
+        assert len(matches) == 1
+    finally:
+        for name in event_log._UI_LOG_LOGGER_NAMES:
+            logging.getLogger(name).removeHandler(handler)
+
+
 def test_handler_copies_download_logger_records() -> None:
     handler = event_log.WebUiLogHandler()
     handler.setFormatter(logging.Formatter("%(message)s"))

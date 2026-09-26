@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from web.engines.base import Engine
+from engines.base import Engine
 
 
 def _stub_tiddl_modules() -> None:
@@ -65,6 +65,17 @@ def _stub_tiddl_modules() -> None:
     core.utils = utils
     tiddl = _mod("tiddl")
     tiddl.core = core
+
+
+def _ensure_tiddl_importable() -> None:
+    """Stub tiddl when the optional package is not installed (Python 3.12 hosts)."""
+    try:
+        import tiddl.core.api  # noqa: F401
+    except ImportError:
+        _stub_tiddl_modules()
+
+
+_ensure_tiddl_importable()
 
 
 class FakeEngine(Engine):
@@ -190,6 +201,7 @@ def web_client(
     main.ws_connections.clear()
     main.pending_auth_engine = None
     main.ENGINES.clear()
+    main._session_downloaded_ids.clear()
 
     with TestClient(main.app) as client:
         yield client, fake_tdlng, fake_tiddl, main
@@ -197,6 +209,7 @@ def web_client(
     main.download_queue.clear()
     main.ws_connections.clear()
     main.pending_auth_engine = None
+    main._session_downloaded_ids.clear()
 
 
 @pytest.fixture

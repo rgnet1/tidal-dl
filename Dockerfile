@@ -28,11 +28,12 @@ RUN pip install \
     "uvicorn[standard]==0.34.*" \
     "websockets>=12" \
     "wsproto>=1.2" \
-    "tiddl>=3.4.0,<4" \
+    "pydantic>=2.12,<3" \
+    "requests-cache>=1.2,<2" \
     "tomli-w>=1.0.0"
 
 COPY pyproject.toml poetry.lock README.md LICENSE /app/
-COPY tidal_dl_ng/ /app/tidal_dl_ng/
+COPY engines/ /app/engine/
 RUN pip install .
 
 COPY web/ /app/web/

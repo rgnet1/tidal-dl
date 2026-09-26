@@ -1,3 +1,13 @@
+# v2.2.0
+
+Lossless and hi-res downloads use TIDAL's v2 track-manifest API, and both engine codebases live in this repo.
+
+- The old playback endpoint only returns AAC. Lossless, hi-res, and Atmos now request `https://openapi.tidal.com/v2/trackManifests/{id}`.
+- tidal-dl-ng source is in `engines/tidal-dl-pro/`. tiddl 3.4.4 (Apache-2.0) is in `engines/tidal-dl/`.
+- The same queued item is fetched once per process, even when skip-existing is off.
+- The activity log no longer stores the same line twice.
+- The search box remembers the last 15 queries. Focus shows the newest four, with a scrollbar and a per-row remove button.
+
 # v2.1.0
 
 Web UI release. Audio is saved as FLAC on both engines, albums keep their track order, and the queue shows live logs and per-song progress.

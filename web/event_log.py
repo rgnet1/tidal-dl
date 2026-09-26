@@ -15,6 +15,7 @@ MAX_LOG_ENTRIES = 500
 _lock = threading.Lock()
 _entries: deque[dict[str, Any]] = deque(maxlen=MAX_LOG_ENTRIES)
 _broadcast: Callable[[dict[str, Any]], Any] | None = None
+_ui_handler: WebUiLogHandler | None = None
 
 # Loggers whose records are mirrored into the UI log panel.
 _UI_LOG_LOGGER_NAMES = (
@@ -76,15 +77,47 @@ class WebUiLogHandler(logging.Handler):
             self.handleError(record)
 
 
+def _ancestor_has_ui_handler(logger_name: str, handler: logging.Handler) -> bool:
+    """Return whether a propagating ancestor already owns the UI handler.
+
+    Args:
+        logger_name: Logger that would also receive the handler.
+        handler: UI handler already attached somewhere in the hierarchy.
+
+    Returns:
+        True when a parent will already copy this logger's records into the UI.
+    """
+    current = logging.getLogger(logger_name).parent
+    while current is not None:
+        if handler in current.handlers:
+            return True
+        if not current.propagate:
+            return False
+        current = current.parent
+    return False
+
+
 def install_ui_log_handler() -> WebUiLogHandler:
-    """Attach the UI handler to download/TIDAL loggers (idempotent)."""
-    handler = WebUiLogHandler()
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(logging.Formatter("%(message)s"))
+    """Attach the UI handler once per logger hierarchy.
+
+    Child loggers such as ``tidal-dl-pro.web.tdlng`` propagate to ``tidal-dl-pro.web``.
+    Attaching the same handler to both stores every download line twice.
+
+    Returns:
+        The shared handler instance.
+    """
+    global _ui_handler
+    if _ui_handler is None:
+        _ui_handler = WebUiLogHandler()
+        _ui_handler.setLevel(logging.INFO)
+        _ui_handler.setFormatter(logging.Formatter("%(message)s"))
+    handler = _ui_handler
     for name in _UI_LOG_LOGGER_NAMES:
         log = logging.getLogger(name)
-        if handler not in log.handlers:
-            log.addHandler(handler)
         if log.level == logging.NOTSET:
             log.setLevel(logging.INFO)
+        if _ancestor_has_ui_handler(name, handler):
+            continue
+        if handler not in log.handlers:
+            log.addHandler(handler)
     return handler

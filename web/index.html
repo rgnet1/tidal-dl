@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
     <title>Tidal DL Pro</title>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F%89%87%99</text></svg>"
-    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.png" type="image/png" sizes="256x256" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <script>
       // Apply the dark class to <html> BEFORE paint so the body's own dark
       // utilities resolve (Tailwind's class dark mode is descendant-based, so the
@@ -746,8 +745,53 @@
                   type="text"
                   x-model="q"
                   placeholder="Search, or paste a TIDAL link..."
+                  @focus="openSearchHistory()"
+                  @click="openSearchHistory()"
+                  @input="onSearchInput()"
                   class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm transition"
                 />
+                <div
+                  x-show="searchHistoryOpen && searchHistory.length"
+                  x-cloak
+                  @mousedown.prevent
+                  class="absolute left-0 right-0 top-full z-30 mt-1 overflow-y-auto rounded-xl border border-surface-200 bg-white shadow-lg dark:border-surface-600 dark:bg-surface-800"
+                  style="max-height: 10rem"
+                  role="listbox"
+                  aria-label="Recent searches"
+                >
+                  <template x-for="item in searchHistory" :key="item">
+                    <div
+                      class="flex h-10 items-center border-b border-surface-100 last:border-b-0 dark:border-surface-700/60"
+                    >
+                      <button
+                        type="button"
+                        class="min-w-0 flex-1 truncate px-3 text-left text-sm text-surface-800 hover:bg-surface-50 dark:text-surface-100 dark:hover:bg-surface-700/60"
+                        @click="pickSearchHistory(item)"
+                        x-text="item"
+                      ></button>
+                      <button
+                        type="button"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center text-surface-400 hover:text-surface-700 dark:hover:text-surface-200"
+                        aria-label="Remove from search history"
+                        @click.stop="removeSearchHistory(item)"
+                      >
+                        <svg
+                          class="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </template>
+                </div>
               </div>
               <select
                 x-model="qType"
@@ -1708,6 +1752,9 @@
           dark: true,
           q: "",
           qType: "Track",
+          searchHistory: [],
+          searchHistoryOpen: false,
+          searchHistoryLocked: false,
           searching: false,
           results: [],
           library: { playlists: [], mixes: [], favorites: [] },
@@ -1783,6 +1830,7 @@
               ).matches;
             }
             this.loadQueueWidth();
+            this.loadSearchHistory();
             try {
               await this.checkAuth();
               if (this.auth) {
@@ -1936,8 +1984,75 @@
             this.library = { playlists: [], mixes: [], favorites: [] };
           },
 
+          loadSearchHistory() {
+            try {
+              var raw = JSON.parse(
+                localStorage.getItem("tidal-dl-pro.searchHistory") || "[]",
+              );
+              this.searchHistory = Array.isArray(raw)
+                ? raw
+                    .filter(function (item) {
+                      return typeof item === "string" && item.trim();
+                    })
+                    .slice(0, 15)
+                : [];
+            } catch (e) {
+              this.searchHistory = [];
+            }
+          },
+
+          saveSearchHistory() {
+            localStorage.setItem(
+              "tidal-dl-pro.searchHistory",
+              JSON.stringify(this.searchHistory.slice(0, 15)),
+            );
+          },
+
+          rememberSearch(query) {
+            var text = String(query || "").trim();
+            if (!text) return;
+            this.searchHistory = [text]
+              .concat(
+                this.searchHistory.filter(function (item) {
+                  return item !== text;
+                }),
+              )
+              .slice(0, 15);
+            this.saveSearchHistory();
+          },
+
+          openSearchHistory() {
+            if (this.searchHistoryLocked || !this.searchHistory.length) {
+              this.searchHistoryOpen = false;
+              return;
+            }
+            this.searchHistoryOpen = true;
+          },
+
+          onSearchInput() {
+            this.searchHistoryLocked = false;
+            this.openSearchHistory();
+          },
+
+          pickSearchHistory(query) {
+            this.q = query;
+            this.searchHistoryLocked = true;
+            this.searchHistoryOpen = false;
+            this.doSearch();
+          },
+
+          removeSearchHistory(query) {
+            this.searchHistory = this.searchHistory.filter(function (item) {
+              return item !== query;
+            });
+            this.saveSearchHistory();
+            if (!this.searchHistory.length) this.searchHistoryOpen = false;
+          },
+
           async doSearch() {
             if (!this.q.trim()) return;
+            this.searchHistoryOpen = false;
+            this.rememberSearch(this.q);
             this.closeMobilePanels();
             this._clearRenderTimer();
             this.searching = true;
@@ -2138,6 +2253,19 @@
 
           appendActivityLog(line) {
             if (!line || !line.message) return;
+            var level = line.level || "info";
+            var start = Math.max(0, this.activityLogs.length - 8);
+            for (var i = this.activityLogs.length - 1; i >= start; i--) {
+              var prev = this.activityLogs[i];
+              if (
+                prev &&
+                prev.ts === line.ts &&
+                prev.message === line.message &&
+                (prev.level || "info") === level
+              ) {
+                return;
+              }
+            }
             this.activityLogs.push({
               ts: line.ts,
               level: line.level || "info",
@@ -2311,6 +2439,13 @@
 
           connectWs() {
             var self = this;
+            if (this.ws) {
+              this.ws.onclose = null;
+              try {
+                this.ws.close();
+              } catch (e) {}
+              this.ws = null;
+            }
             var proto = location.protocol === "https:" ? "wss:" : "ws:";
             this.ws = new WebSocket(proto + "//" + location.host + "/ws");
             this.ws.onmessage = function (ev) {
